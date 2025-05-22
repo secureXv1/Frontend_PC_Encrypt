@@ -5,6 +5,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 import json
+from stegano import lsb  # <-- nuevo
 
 # --- Clave maestra oculta en el código ---
 def cargar_clave_maestra_embebida():
@@ -57,7 +58,7 @@ def cifrar_archivo(input_path, pub_user_path, output_path):
     encrypted_data = fernet.encrypt(data)
 
     pub_user = cargar_pub(pub_user_path)
-    pub_master = cargar_clave_maestra_embebida()  # 👈 Se carga desde el código
+    pub_master = cargar_clave_maestra_embebida()
 
     encrypted_key_user = pub_user.encrypt(
         aes_key,
@@ -105,7 +106,24 @@ def descifrar_archivo(input_path, priv_path, output_path):
 
     messagebox.showinfo("Éxito", f"Archivo descifrado en:\n{output_path}")
 
-# --- Interfaz gráfica (Tkinter) ---
+# --- Esteganografía ---
+
+def ocultar_en_imagen(imagen_path, mensaje_cifrado_path, imagen_salida_path):
+    with open(mensaje_cifrado_path, "r") as f:
+        contenido = f.read()
+    lsb.hide(imagen_path, contenido).save(imagen_salida_path)
+    messagebox.showinfo("Éxito", f"Mensaje oculto en imagen:\n{imagen_salida_path}")
+
+def extraer_de_imagen(imagen_path, archivo_salida_path):
+    mensaje = lsb.reveal(imagen_path)
+    if mensaje is None:
+        messagebox.showerror("Error", "No se encontró mensaje oculto.")
+        return
+    with open(archivo_salida_path, "w") as f:
+        f.write(mensaje)
+    messagebox.showinfo("Éxito", f"Mensaje extraído en:\n{archivo_salida_path}")
+
+# --- GUI ---
 
 def crear_gui():
     root = tk.Tk()
@@ -130,11 +148,29 @@ def crear_gui():
         if input_file and priv_key and output_file:
             descifrar_archivo(input_file, priv_key, output_file)
 
+    def accion_ocultar_en_imagen():
+        imagen_base = filedialog.askopenfilename(title="Imagen .png donde ocultar")
+        mensaje_cifrado = filedialog.askopenfilename(title="Archivo cifrado (.json)")
+        imagen_salida = filedialog.asksaveasfilename(defaultextension=".png", title="Guardar imagen con mensaje oculto")
+        if imagen_base and mensaje_cifrado and imagen_salida:
+            ocultar_en_imagen(imagen_base, mensaje_cifrado, imagen_salida)
+
+    def accion_extraer_y_descifrar():
+        imagen_origen = filedialog.askopenfilename(title="Imagen con mensaje oculto")
+        archivo_temporal = filedialog.asksaveasfilename(defaultextension=".json", title="Guardar mensaje extraído")
+        clave_privada = filedialog.askopenfilename(title="Tu clave privada (.pem)")
+        salida = filedialog.asksaveasfilename(title="Guardar archivo descifrado")
+        if imagen_origen and archivo_temporal and clave_privada and salida:
+            extraer_de_imagen(imagen_origen, archivo_temporal)
+            descifrar_archivo(archivo_temporal, clave_privada, salida)
+
     tk.Label(root, text="Simulador PGP", font=("Helvetica", 16, "bold")).pack(pady=10)
 
     tk.Button(root, text="🔐 Generar par de claves", width=30, command=accion_generar).pack(pady=10)
     tk.Button(root, text="📦 Cifrar archivo", width=30, command=accion_cifrar).pack(pady=10)
     tk.Button(root, text="🔓 Descifrar archivo", width=30, command=accion_descifrar).pack(pady=10)
+    tk.Button(root, text="📷 Ocultar cifrado en imagen", width=30, command=accion_ocultar_en_imagen).pack(pady=10)
+    tk.Button(root, text="🔍 Extraer de imagen y descifrar", width=30, command=accion_extraer_y_descifrar).pack(pady=10)
 
     root.mainloop()
 
