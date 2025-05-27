@@ -138,7 +138,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 ))
             
             #Guardar la ruta donde se guardaron las claves (pública y privada)
-            self.public_key_path = f"{base_name}_public.pem"
+            #self.public_key_path = f"{base_name}_public.pem"
             self.private_key_path = f"{base_name}_private.pem"
                 
             QtWidgets.QMessageBox.information(self, "✅ Éxito",
@@ -147,24 +147,34 @@ class MainWindow(QtWidgets.QMainWindow):
    
     #Función para cifrar
     def on_encrypt_file(self):
-        if not self.public_key_path:
-            QtWidgets.QMessageBox.warning(self, "⚠️ Sin clave pública", "Primero genera una clave pública.")
-            return
-        
         input_file, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Seleccionar archivo a cifrar", "", "All Files (*)")
-           
+        
+        if not input_file:
+            return
+
+        # Seleccionar clave pública
+        public_key_file, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Seleccionar clave pública (.pem)", "", "Claves Públicas (*.pem);;All Files (*)")
+             
+             
+        if not public_key_file:
+            return
+
+    # Seleccionar ruta de salida
         output_file, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Guardar archivo cifrado", "", "Archivo Cifrado (*.json)")
-        
+
         if not output_file:
             return
-        
+
         try:
-            cifrar_archivo_con_rsa(input_file, self.public_key_path, output_file)
+            cifrar_archivo_con_rsa(input_file, public_key_file, output_file)
             QtWidgets.QMessageBox.information(self, "✅ Éxito", f"Archivo cifrado guardado en:\n{output_file}")
+            self.left_panel.chat_area.append("📦 Archivo cifrado exitosamente.")
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "❌ Error", f"No se pudo cifrar el archivo:\n{e}")
+
 
 
     #Función para descifrar
