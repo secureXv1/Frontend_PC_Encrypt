@@ -191,6 +191,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not hasattr(self, 'private_key_path'):
             private_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
                 self, "Seleccionar tu clave privada", "", "PEM Files (*.pem);;All Files (*)")
+            
             if not private_key_path:
                 return
         
@@ -204,47 +205,47 @@ class MainWindow(QtWidgets.QMainWindow):
         if not encrypted_file:
             return
         
-        #Seleccionar ruta donde se guardará el archivo descifrado
-        save_dir = QtWidgets.QFileDialog.getExistingDirectory(self, "Seleccionar carpeta para guardar")
-        
-        if not save_dir:
-            return
-        
         try:
             with open(encrypted_file, "r") as f:
                 payload = json.load(f)
-            
-            encrypted_key = bytes.fromhex(payload["key"])
-            encrypted_data = bytes.fromhex(payload["data"])
+                
+                encrypted_key = bytes.fromhex(payload["key"])
+                encrypted_data = bytes.fromhex(payload["data"])
+                # Cargar clave privada
+                with open(private_key_path, "rb") as f:
+                    priv_key = serialization.load_pem_private_key(f.read(), password=None)
 
-            #Cargar clave privada
-            with open(private_key_path, "rb") as f:
-                priv_key = serialization.load_pem_private_key(f.read(), password=None)
-            
-            #Descifrar clave simétrica
-            aes_key = priv_key.decrypt(
-                encrypted_key,
-                padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
-            )
+                # Descifrar clave simétrica
+                aes_key = priv_key.decrypt(
+                    encrypted_key,
+                    padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+                )
 
-            #Descifrar datos
-            fernet = Fernet(aes_key)
-            decrypted_serialized = fernet.decrypt(encrypted_data)
-            original_payload = json.loads(decrypted_serialized.decode("utf-8"))
+                # Descifrar datos
+                fernet = Fernet(aes_key)
+                decrypted_serialized = fernet.decrypt(encrypted_data)
+                original_payload = json.loads(decrypted_serialized.decode("utf-8"))
 
-            #Preparar la extensión del archivo cifrado
-            ext = original_payload["ext"]
-            file_data = base64.b64decode(original_payload["content"])
+                ext = original_payload.get("ext", "")
+                if not ext.startswith("."):
+                    ext = f".{ext}"
 
-            #Restaurar archivo con extensión original
-            output_path = os.path.join(save_dir, f"descifrado{ext}")
-            with open(output_path, "wb") as f:
-                f.write(file_data)
-            
-            #Imprimir mensaje de éxito al descifrar archivo 
-            QtWidgets.QMessageBox.information(self, "✅ Éxito", f"Archivo descifrado guardado como:\n{output_path}")
+                file_data = base64.b64decode(original_payload["content"])
+
+                # Permitir que el usuario asigne nombre y ruta final
+                output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                    self, "Guardar archivo descifrado", f"descifrado{ext}", f"Archivo restaurado (*{ext});;Todos los archivos (*)"
+                )
+                if not output_path:
+                    return
+                with open(output_path, "wb") as f:
+                    f.write(file_data)
+
+                #Imprimir mensaje de éxito al descifrar
+                QtWidgets.QMessageBox.information(self, "✅ Éxito", f"Archivo descifrado guardado como:\n{output_path}")
+    
         except Exception as e:
-            #Imprimir mensaje de error al tratar de descifrar archivo
+            #Imprimir mensaje de error al descifrar
             QtWidgets.QMessageBox.critical(self, "❌ Error", f"No se pudo descifrar el archivo:\n{str(e)}")
 
         
@@ -523,53 +524,59 @@ def ocultar_archivo_en_contenedor(contenedor_path, archivo_oculto_path, salida_p
 
 #Función para descifrar archivo extraido
 def descifrar_archivo_extraido(self, encrypted_path):
-
     # Seleccionar la clave privada para descifrar
     private_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
         self, "Seleccionar clave privada (.pem)", "", "PEM Files (*.pem)"
     )
-
+    
     if not private_key_path:
         return
-    
+
     try:
-        #Leer archivo cifrado
+        # Leer archivo cifrado
         with open(encrypted_path, "r") as f:
             payload = json.load(f)
-        
+
         encrypted_key = bytes.fromhex(payload["key"])
         encrypted_data = bytes.fromhex(payload["data"])
-        extension = payload.get("extension", "")  # Puede ser "" si no existe
 
-        #Cargar clave privada
+        # Cargar clave privada
         with open(private_key_path, "rb") as f:
             private_key = serialization.load_pem_private_key(f.read(), password=None)
-        
-        #Descifrar clave AES
+
+        # Descifrar clave AES
         aes_key = private_key.decrypt(
             encrypted_key,
             padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
         )
 
-        #Descifrar datos
+        # Descifrar datos
         fernet = Fernet(aes_key)
-        original_data = fernet.decrypt(encrypted_data)
+        decrypted_serialized = fernet.decrypt(encrypted_data)
+        original_payload = json.loads(decrypted_serialized.decode("utf-8"))
 
-        #Guardar archivo restaurado con extensión original
+        ext = original_payload.get("ext", "")
+        if not ext.startswith("."):
+            ext = f".{ext}"
+
+        file_data = base64.b64decode(original_payload["content"])
+
+        # Permitir al usuario asignar nombre y ruta del archivo descifrado
         save_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Guardar archivo descifrado", f"restaurado{extension}", f"Archivo Restaurado (*{extension});;Todos los archivos (*)"
+            self, "Guardar archivo descifrado", f"restaurado{ext}", f"Archivo restaurado (*{ext});;Todos los archivos (*)"
         )
 
         if not save_path:
             return
-        
+
         with open(save_path, "wb") as out:
-            out.write(original_data)
-        
-        #Imprimir mensaje de éxito al guardar archivo descifrado
+            out.write(file_data)
+
+        #imprimir mensaje de éxito al descifrar
         QtWidgets.QMessageBox.information(self, "✅ Éxito", f"Archivo descifrado guardado en:\n{save_path}")
 
     except Exception as e:
+        #imprimir mensaje de error al descifrar
         QtWidgets.QMessageBox.critical(self, "❌ Error", f"No se pudo descifrar el archivo:\n{str(e)}")
 
 
