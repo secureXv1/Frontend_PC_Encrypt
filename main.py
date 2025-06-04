@@ -13,12 +13,12 @@ class TunnelPanel(QtWidgets.QWidget):
         super().__init__()
         self.setLayout(QtWidgets.QVBoxLayout())
 
-        #Lista de túneles
+        # Lista de túneles
         self.tunnel_list = QtWidgets.QListWidget()
         self.layout().addWidget(QtWidgets.QLabel("🛡 Mis Túneles"))
         self.layout().addWidget(self.tunnel_list)
 
-        #Botones para crear/conectarse
+        # Botones para crear/conectarse
         btn_layout = QtWidgets.QHBoxLayout()
         self.btn_create = QtWidgets.QPushButton("➕ Crear Túnel")
         self.btn_connect = QtWidgets.QPushButton("🔌 Conectarse")
@@ -26,7 +26,7 @@ class TunnelPanel(QtWidgets.QWidget):
         btn_layout.addWidget(self.btn_connect)
         self.layout().addLayout(btn_layout)
 
-        #Área de chat
+        # Área de chat
         self.chat_area = QtWidgets.QTextEdit()
         self.chat_area.setReadOnly(True)
         self.chat_input = QtWidgets.QLineEdit()
@@ -41,12 +41,12 @@ class TunnelPanel(QtWidgets.QWidget):
         self.layout().addWidget(self.chat_area)
         self.layout().addLayout(chat_input_layout)
 
-        #Ocultar chat inicialmente
+        # Ocultar chat inicialmente
         self.chat_area.hide()
         self.chat_input.hide()
         self.btn_send.hide()
 
-        #Conectar acciones
+        # Conectar acciones
         self.btn_create.clicked.connect(self.crear_tunel)
         self.btn_connect.clicked.connect(self.conectarse_tunel)
         self.btn_send.clicked.connect(self.enviar_mensaje)
@@ -84,15 +84,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("BETTY - Simulador PGP Educativo")
         self.setGeometry(100, 100, 1000, 600)
 
-        #Layout principal
+        # Layout principal
         central_widget = QtWidgets.QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QtWidgets.QHBoxLayout(central_widget)
 
-        #Panel izquierdo: túneles y chat
+        # Panel izquierdo: túneles y chat
         self.left_panel = TunnelPanel()
 
-        #Panel derecho: opciones principales
+        # Panel derecho: opciones principales
         self.right_panel = QtWidgets.QVBoxLayout()
         self.add_menu_button("🔐 Crear Llaves", self.on_create_keys)
         self.add_menu_button("📦 Cifrar Archivo", self.on_encrypt_file)
@@ -101,7 +101,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.add_menu_button("🔍 Extraer Archivo", self.on_extract_hidden_file)
         self.right_panel.addStretch()
 
-        #Integrar ambos paneles
+        # Integrar ambos paneles
         main_layout.addWidget(self.left_panel, 3)
         main_layout.addLayout(self.right_panel, 2)
 
@@ -112,24 +112,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.right_panel.addWidget(button)
 
     #+++++FUNCIONES PRINCIPALES++++++placeholder+++++
-    #Función para crear llaves (pública y privada)
+    # Función para crear llaves (pública y privada)
     def on_create_keys(self):
         options = QtWidgets.QFileDialog.Options()
         file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Guardar clave (nombre base)", "", "PEM Files (*.pem);;All Files (*)", options=options)
         
         if not file_path:
-            return  #Cancelado por el usuario
+            return  # Cancelado por el usuario
         
-        base_name = file_path.rsplit(".", 1)[0]  #Quitar extensión si la hay
+        base_name = file_path.rsplit(".", 1)[0]  # Quitar extensión si la hay
         
-        #Generar clave privada
+        # Generar clave privada
         private_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048
         )
         
-        #Serializar y guardar clave privada
+        # Serializar y guardar clave privada
         with open(f"{base_name}_private.pem", "wb") as f:
             f.write(private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -137,7 +137,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 encryption_algorithm=serialization.NoEncryption()
             ))
             
-            #Serializar y guardar clave pública
+            # Serializar y guardar clave pública
             public_key = private_key.public_key()
             with open(f"{base_name}_public.pem", "wb") as f:
                 f.write(public_key.public_bytes(
@@ -161,7 +161,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not input_file:
             return
 
-        #Seleccionar clave pública
+        # Seleccionar clave pública
         public_key_file, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Seleccionar clave pública (.pem)", "", "Claves Públicas (*.pem);;All Files (*)")
              
@@ -169,7 +169,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not public_key_file:
             return
 
-    #Seleccionar ruta de salida
+    # Seleccionar ruta de salida
         output_file, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Guardar archivo cifrado", "", "Archivo Cifrado (*.json)")
 
@@ -211,17 +211,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 encrypted_key = bytes.fromhex(payload["key"])
                 encrypted_data = bytes.fromhex(payload["data"])
-                #Cargar clave privada
+                # Cargar clave privada
                 with open(private_key_path, "rb") as f:
                     priv_key = serialization.load_pem_private_key(f.read(), password=None)
 
-                #Descifrar clave simétrica
+                # Descifrar clave simétrica
                 aes_key = priv_key.decrypt(
                     encrypted_key,
                     padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
                 )
 
-                #Descifrar datos
+                # Descifrar datos
                 fernet = Fernet(aes_key)
                 decrypted_serialized = fernet.decrypt(encrypted_data)
                 original_payload = json.loads(decrypted_serialized.decode("utf-8"))
@@ -232,7 +232,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 file_data = base64.b64decode(original_payload["content"])
 
-                #Permitir que el usuario asigne nombre y ruta final
+                # Permitir que el usuario asigne nombre y ruta final
                 output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
                     self, "Guardar archivo descifrado", f"descifrado{ext}", f"Archivo restaurado (*{ext});;Todos los archivos (*)"
                 )
@@ -254,7 +254,7 @@ class MainWindow(QtWidgets.QMainWindow):
     #Función para descifrar archivo extraido
     def descifrar_archivo_extraido(self, file_path):
         
-        #Seleccionar clave privada
+        # Seleccionar clave privada
         priv_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Seleccionar tu clave privada", "", "PEM Files (*.pem)")
         
@@ -299,14 +299,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     #Función para ocultar archivo cifrado en contenedor
     def on_hide_file(self):
-        #Seleccionar archivo cifrado (.json)
+        # Seleccionar archivo cifrado (.json)
         cifrado_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Seleccionar archivo cifrado", "", "Archivo Cifrado (*.json);;All Files (*)")
         
         if not cifrado_path:
             return
         
-        #Seleccionar archivo contenedor (imagen, audio, documento, etc.)
+        # Seleccionar archivo contenedor (imagen, audio, documento, etc.)
         contenedor_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Seleccionar archivo contenedor", "", "Todos los archivos (*)")
         
@@ -329,7 +329,7 @@ class MainWindow(QtWidgets.QMainWindow):
             with open(cifrado_path, "rb") as cif_file:
                  cif_data = cif_file.read()
             
-            #Marcar el inicio del contenido oculto con una firma única
+            # Marcar el inicio del contenido oculto con una firma única
             firma = b"<<--BETTY_START-->>"
             oculto = cont_data + firma + cif_data
 
@@ -379,7 +379,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 ext = ".json"
             
                       
-            #Proponer un nombre de archivo con la extensión detectada
+            # Proponer un nombre de archivo con la extensión detectada
             output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self,
             "Guardar archivo extraído",
@@ -396,7 +396,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.information(self, "✅ Éxito", f"Archivo extraído y guardado en:\n{output_path}")
             
             '''
-            #Preguntar si desea descifrarlo ahora
+            # Preguntar si desea descifrarlo ahora
             reply = QtWidgets.QMessageBox.question(
                 self, "¿Descifrar ahora?",
                 "¿Desea descifrar el archivo extraído?",
@@ -417,7 +417,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 #Función para cifrar un archivo con RSA
 def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):
-    #Leer datos del archivo a cifrar
+    # Leer datos del archivo a cifrar
     with open(input_path, "rb") as f:
         file_data = f.read()
     
@@ -449,7 +449,7 @@ def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):
             label=None
         )
     )
-    #Preparar payload final para guardar
+    # Preparar payload final para guardar
     payload = {
         "key": encrypted_key.hex(),
         "data": encrypted_data.hex()
@@ -501,6 +501,11 @@ def descifrar_archivo_con_rsa(input_path, private_key_path, output_path):
         f.write(file_data)
 
 
+
+
+
+
+
 #Función para ocultar archivo cifrado en un contenedor
 def ocultar_archivo_en_contenedor(contenedor_path, archivo_oculto_path, salida_path):
     with open(contenedor_path, "rb") as contenedor:
@@ -519,7 +524,7 @@ def ocultar_archivo_en_contenedor(contenedor_path, archivo_oculto_path, salida_p
 
 #Función para descifrar archivo extraido
 def descifrar_archivo_extraido(self, encrypted_path):
-    #Seleccionar la clave privada para descifrar
+    # Seleccionar la clave privada para descifrar
     private_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
         self, "Seleccionar clave privada (.pem)", "", "PEM Files (*.pem)"
     )
@@ -528,24 +533,24 @@ def descifrar_archivo_extraido(self, encrypted_path):
         return
 
     try:
-        #Leer archivo cifrado
+        # Leer archivo cifrado
         with open(encrypted_path, "r") as f:
             payload = json.load(f)
 
         encrypted_key = bytes.fromhex(payload["key"])
         encrypted_data = bytes.fromhex(payload["data"])
 
-        #Cargar clave privada
+        # Cargar clave privada
         with open(private_key_path, "rb") as f:
             private_key = serialization.load_pem_private_key(f.read(), password=None)
 
-        #Descifrar clave AES
+        # Descifrar clave AES
         aes_key = private_key.decrypt(
             encrypted_key,
             padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
         )
 
-        #Descifrar datos
+        # Descifrar datos
         fernet = Fernet(aes_key)
         decrypted_serialized = fernet.decrypt(encrypted_data)
         original_payload = json.loads(decrypted_serialized.decode("utf-8"))
@@ -556,7 +561,7 @@ def descifrar_archivo_extraido(self, encrypted_path):
 
         file_data = base64.b64decode(original_payload["content"])
 
-        #Permitir al usuario asignar nombre y ruta del archivo descifrado
+        # Permitir al usuario asignar nombre y ruta del archivo descifrado
         save_path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Guardar archivo descifrado", f"restaurado{ext}", f"Archivo restaurado (*{ext});;Todos los archivos (*)"
         )
@@ -573,6 +578,12 @@ def descifrar_archivo_extraido(self, encrypted_path):
     except Exception as e:
         #imprimir mensaje de error al descifrar
         QtWidgets.QMessageBox.critical(self, "❌ Error", f"No se pudo descifrar el archivo:\n{str(e)}")
+
+
+
+
+
+
 
 #****FUNCIONES AUXILIARES*****FIN******
 
