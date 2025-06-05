@@ -5,20 +5,39 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 import base64
-
+import threading
+from db import crear_tunel
+from db import obtener_tunel_por_nombre
+from chat_window import ChatWindow
+from tunnel_client import TunnelClient
+from password_utils import verificar_password
 
 #Panel de Tuneles - salas de chat
 class TunnelPanel(QtWidgets.QWidget):
-    def __init__(self):
+    def __init__(self, parent=None):
         super().__init__()
-        self.setLayout(QtWidgets.QVBoxLayout())
+        self.parent = parent
 
-        #Lista de túneles
-        self.tunnel_list = QtWidgets.QListWidget()
+        layout = QtWidgets.QVBoxLayout()
+        self.setLayout(layout)
+
+        # Campos para ingresar nombre, contraseña y alias
+        self.input_name = QtWidgets.QLineEdit()
+        self.input_name.setPlaceholderText("Nombre del túnel")
+        self.input_password = QtWidgets.QLineEdit()
+        self.input_password.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.input_password.setPlaceholderText("Contraseña")
+        self.input_alias = QtWidgets.QLineEdit()
+        self.input_alias.setPlaceholderText("Tu alias")
+
         self.layout().addWidget(QtWidgets.QLabel("🛡 Mis Túneles"))
+        self.layout().addWidget(self.input_name)
+        self.layout().addWidget(self.input_password)
+        self.layout().addWidget(self.input_alias)
+
+        self.tunnel_list = QtWidgets.QListWidget()
         self.layout().addWidget(self.tunnel_list)
 
-        #Botones para crear/conectarse
         btn_layout = QtWidgets.QHBoxLayout()
         self.btn_create = QtWidgets.QPushButton("➕ Crear Túnel")
         self.btn_connect = QtWidgets.QPushButton("🔌 Conectarse")
@@ -26,7 +45,6 @@ class TunnelPanel(QtWidgets.QWidget):
         btn_layout.addWidget(self.btn_connect)
         self.layout().addLayout(btn_layout)
 
-        #Área de chat
         self.chat_area = QtWidgets.QTextEdit()
         self.chat_area.setReadOnly(True)
         self.chat_input = QtWidgets.QLineEdit()
@@ -41,39 +59,71 @@ class TunnelPanel(QtWidgets.QWidget):
         self.layout().addWidget(self.chat_area)
         self.layout().addLayout(chat_input_layout)
 
-        #Ocultar chat inicialmente
+        # Ocultar chat inicialmente
         self.chat_area.hide()
         self.chat_input.hide()
         self.btn_send.hide()
 
-        #Conectar acciones
-        self.btn_create.clicked.connect(self.crear_tunel)
-        self.btn_connect.clicked.connect(self.conectarse_tunel)
+        # Conectar botones
+        self.btn_create.clicked.connect(self.parent.crear_tunel_desde_ui)
+        self.btn_connect.clicked.connect(self.unirse_a_tunel_desde_ui)
         self.btn_send.clicked.connect(self.enviar_mensaje)
-    
-    #Función para crear túneles
-    def crear_tunel(self):
-        nombre, ok = QtWidgets.QInputDialog.getText(self, "Crear Túnel", "Nombre del túnel:")
-        if ok and nombre.strip():
-            self.tunnel_list.addItem(nombre.strip())
-            self.chat_area.append(f"🔐 Túnel '{nombre.strip()}' creado.")
 
-    #Función para conectarse a un tunel
-    def conectarse_tunel(self):
-        item = self.tunnel_list.currentItem()
-        if item:
-            tunel = item.text()
+        # Cliente de túnel
+        self.cliente = None
+
+    def unirse_a_tunel_desde_ui(self):
+        nombre = self.input_name.text().strip()
+        password = self.input_password.text().strip()
+        alias = self.input_alias.text().strip()
+
+        if not nombre or not password or not alias:
+            print("⚠️ Todos los campos son obligatorios.")
+            return
+
+        try:
+            tunel = obtener_tunel_por_nombre(nombre)
+            if not tunel:
+                print("❌ Túnel no encontrado.")
+                return
+
+            if not verificar_password(password, tunel["password_hash"]):
+                print("❌ Contraseña incorrecta.")
+                return
+
+            # Crear cliente y conectar
+            self.cliente = TunnelClient(
+                host="symbolsaps.ddns.net",
+                port=5050,
+                tunnel_id=tunel["id"],
+                alias=alias,
+                on_receive_callback=self.recibir_mensaje
+            )
+            self.cliente.connect()
+
+            # Mostrar área de chat
             self.chat_area.show()
             self.chat_input.show()
             self.btn_send.show()
-            self.chat_area.append(f"✅ Te has conectado al túnel '{tunel}'.")
+            self.chat_area.append(f"✅ Conectado al túnel '{nombre}' como {alias}")
 
-    #Función para enviar mensaje en un tunel - sala de chat
+        except Exception as e:
+            print("❌ No se pudo conectar al túnel:")
+            print(e)
+
     def enviar_mensaje(self):
         mensaje = self.chat_input.text().strip()
-        if mensaje:
-            self.chat_area.append(f"🧑 Tú: {mensaje}")
-            self.chat_input.clear()
+        if mensaje and self.cliente:
+            try:
+                texto = f"{self.input_alias.text()}: {mensaje}"
+                self.cliente.socket.sendall(texto.encode())
+                self.chat_area.append(f"🧑 Tú: {mensaje}")
+                self.chat_input.clear()
+            except:
+                self.chat_area.append("⚠️ Error al enviar el mensaje")
+
+    def recibir_mensaje(self, mensaje):
+        self.chat_area.append(mensaje)
 
 
 #Panel principal - Cifrado
@@ -90,7 +140,7 @@ class MainWindow(QtWidgets.QMainWindow):
         main_layout = QtWidgets.QHBoxLayout(central_widget)
 
         #Panel izquierdo: túneles y chat
-        self.left_panel = TunnelPanel()
+        self.left_panel = TunnelPanel(parent=self)
 
         #Panel derecho: opciones principales
         self.right_panel = QtWidgets.QVBoxLayout()
@@ -104,6 +154,74 @@ class MainWindow(QtWidgets.QMainWindow):
         #Integrar ambos paneles
         main_layout.addWidget(self.left_panel, 3)
         main_layout.addLayout(self.right_panel, 2)
+        
+    #Función para crear túneles
+    def crear_tunel_desde_ui(self):
+        from db import crear_tunel
+        from password_utils import hash_password
+
+        nombre, ok1 = QtWidgets.QInputDialog.getText(self, "Crear Túnel", "Nombre del túnel:")
+        if not ok1 or not nombre.strip():
+            return
+
+        clave, ok2 = QtWidgets.QInputDialog.getText(self, "Crear Túnel", "Contraseña:", QtWidgets.QLineEdit.Password)
+        if not ok2 or not clave.strip():
+            return
+
+        try:
+            password_hash = hash_password(clave)
+            tunnel_id = crear_tunel(nombre.strip(), password_hash)
+
+            self.left_panel.tunnel_list.addItem(nombre.strip())
+            self.left_panel.chat_area.append(f"🔐 Túnel '{nombre.strip()}' creado exitosamente.")
+
+            # Si tienes lógica para iniciar servidor de túnel, la puedes colocar aquí
+            # Por ejemplo:
+            # threading.Thread(target=iniciar_servidor_tunel, args=(nombre.strip(), tunnel_id), daemon=True).start()
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo crear el túnel:\n{str(e)}")
+
+    #Función para conectarse a un tunel
+    from tunnel_client import TunnelClient
+    from chat_window import ChatWindow
+
+    def unirse_a_tunel_desde_ui(self):
+        try:
+            from db import obtener_tunel_por_nombre
+            from password_utils import verificar_password
+
+            nombre = self.left_panel.input_name.text()
+            password = self.left_panel.input_password.text()
+            alias = self.left_panel.input_alias.text() or "Anónimo"
+
+            tunel = obtener_tunel_por_nombre(nombre)
+            if not tunel:
+                QtWidgets.QMessageBox.warning(self, "Error", "Túnel no encontrado")
+                return
+
+            if not verificar_password(password, tunel["password_hash"]):
+                QtWidgets.QMessageBox.warning(self, "Error", "Contraseña incorrecta")
+                return
+
+            tunel_id = tunel["id"]
+
+            # Conectamos al servidor de túnel
+            self.cliente = TunnelClient(
+                host="symbolsaps.ddns.net",  # cambia por IP real si no es local
+                port=5050,
+                tunnel_id=tunel_id,
+                alias=alias,
+                on_receive_callback=self.recibir_mensaje
+            )
+            self.cliente.connect()
+
+            # Abrir ventana de chat
+            self.chat_window = ChatWindow(alias, self.cliente.sock)
+            self.chat_window.show()
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo conectar al túnel:\n{e}")
 
     def add_menu_button(self, label, callback):
         button = QtWidgets.QPushButton(label)
@@ -180,6 +298,9 @@ class MainWindow(QtWidgets.QMainWindow):
             cifrar_archivo_con_rsa(input_file, public_key_file, output_file)
             QtWidgets.QMessageBox.information(self, "✅ Éxito", f"Archivo cifrado guardado en:\n{output_file}")
             self.left_panel.chat_area.append("📦 Archivo cifrado exitosamente.")
+            # 🛰️ Lanzar servidor del túnel
+            puerto = 5050 + tunnel_id  # o usar cualquier otra fórmula
+            threading.Thread(target=iniciar_servidor_tunel, args=(tunnel_id, puerto), daemon=True).start()
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "❌ Error", f"No se pudo cifrar el archivo:\n{e}")
 
