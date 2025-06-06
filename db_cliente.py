@@ -26,13 +26,20 @@ def crear_tunel(nombre, password_hash):
 
 # 🔎 Consultar túnel por nombre
 def obtener_tunel_por_nombre(nombre):
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM tunnels WHERE name = %s", (nombre,))
-    tunel = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return tunel
+    import traceback
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM tunnels WHERE name = %s", (nombre,))
+        tunel = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return tunel
+    except Exception as e:
+        print("❌ Error en obtener_tunel_por_nombre:")
+        traceback.print_exc()
+        raise
+
 
 # 💾 Guardar el UUID localmente
 def guardar_uuid_localmente(uuid):
