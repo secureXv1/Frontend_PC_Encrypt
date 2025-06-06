@@ -18,13 +18,20 @@ class TunnelClient:
 
     def connect(self):
         self.socket.connect((self.host, self.port))
+        
+        from main import obtener_info_equipo
+        info = obtener_info_equipo()
+
+        # 🔐 Handshake completo
         handshake = {
             "tunnel_id": self.tunnel_id,
-            "alias": self.alias
+            "alias": self.alias,
+            "uuid": info["uuid"],
+            "hostname": info["hostname"],
+            "sistema": info["sistema"]
         }
-        from main import obtener_info_equipo
 
-        info = obtener_info_equipo()
+        # Registrar alias por API
         try:
             requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json={
                 "uuid": info["uuid"],
@@ -33,10 +40,9 @@ class TunnelClient:
             })
         except Exception as e:
             print("⚠️ No se pudo registrar alias:", e)
-        
-        
-        self.socket.sendall((json.dumps(handshake) + "\n").encode("utf-8"))
 
+        # Enviar handshake por socket
+        self.socket.sendall((json.dumps(handshake) + "\n").encode("utf-8"))
         self.running = True
         threading.Thread(target=self.receive_loop, daemon=True).start()
 
