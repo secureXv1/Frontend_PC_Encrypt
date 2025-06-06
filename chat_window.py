@@ -1,11 +1,14 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QLineEdit
-from password_utils import verificar_password
+from db_cliente import get_client_uuid
 
 class ChatWindow(QWidget):
-    def __init__(self, alias, socket):
+    def __init__(self, alias, socket, tunnel_id, uuid):
         super().__init__()
         self.alias = alias
         self.socket = socket
+        self.tunnel_id = tunnel_id
+        self.uuid = uuid  # identificador único del cliente
+
         self.setWindowTitle(f"Túnel - {alias}")
         self.resize(400, 300)
 
@@ -30,7 +33,7 @@ class ChatWindow(QWidget):
             mensaje = f"{self.alias}: {texto}"
             try:
                 self.socket.sendall(mensaje.encode())
-                self.mostrar_mensaje(mensaje)
+                self.mostrar_mensaje(f"🧑 Tú: {texto}")
                 self.input_field.clear()
-            except:
-                self.mostrar_mensaje("⚠️ Error al enviar el mensaje")
+            except Exception as e:
+                self.mostrar_mensaje(f"⚠️ Error al enviar el mensaje: {e}")

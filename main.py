@@ -6,11 +6,36 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 import base64
 import threading
-from db import crear_tunel
-from db import obtener_tunel_por_nombre
 from chat_window import ChatWindow
 from tunnel_client import TunnelClient
 from password_utils import verificar_password
+from db_cliente import crear_tunel, obtener_tunel_por_nombre, guardar_uuid_localmente, get_client_uuid, registrar_cliente
+import platform, socket, uuid
+import requests
+import uuid
+import socket
+import platform
+
+# 📌 Obtener datos del equipo
+def obtener_info_equipo():
+    return {
+        "uuid": str(uuid.getnode()),
+        "hostname": socket.gethostname(),
+        "sistema": platform.system() + " " + platform.release()
+    }
+
+# registro de los equipos
+def registrar_en_backend():
+    info = obtener_info_equipo()
+    try:
+        response = requests.post("http://symbolsaps.ddns.net:8000/api/registrar_cliente", json=info)
+        response.raise_for_status()
+    except Exception as e:
+        print("❌ Error al registrar cliente en el backend:", e)
+
+# Llama esto al iniciar
+registrar_en_backend()
+
 
 #Panel de Tuneles - salas de chat
 class TunnelPanel(QtWidgets.QWidget):
@@ -157,7 +182,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
     #Función para crear túneles
     def crear_tunel_desde_ui(self):
-        from db import crear_tunel
+        import requests
         from password_utils import hash_password
 
         nombre, ok1 = QtWidgets.QInputDialog.getText(self, "Crear Túnel", "Nombre del túnel:")
@@ -169,8 +194,16 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         try:
-            password_hash = hash_password(clave)
-            tunnel_id = crear_tunel(nombre.strip(), password_hash)
+            response = requests.post("http://symbolsaps.ddns.net:8000/api/tunnels/create", json={
+                "name": nombre.strip(),
+                "password": clave
+            })
+
+            if response.status_code == 201:
+                tunnel_id = response.json()["tunnel_id"]
+                # continúa con UI
+            else:
+                raise Exception(response.text)
 
             self.left_panel.tunnel_list.addItem(nombre.strip())
             self.left_panel.chat_area.append(f"🔐 Túnel '{nombre.strip()}' creado exitosamente.")
@@ -188,7 +221,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def unirse_a_tunel_desde_ui(self):
         try:
-            from db import obtener_tunel_por_nombre
+            response = requests.get("http://symbolsaps.ddns.net:8000/api/tunnels/get", params={"name": nombre})
+            if response.status_code == 200:
+                tunel = response.json()
+            else:
+                raise Exception("Túnel no encontrado")
+
             from password_utils import verificar_password
 
             nombre = self.left_panel.input_name.text()
@@ -217,7 +255,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.cliente.connect()
 
             # Abrir ventana de chat
-            self.chat_window = ChatWindow(alias, self.cliente.sock)
+            self.chat_window = ChatWindow(alias, self.cliente.sock, tunel_id)
             self.chat_window.show()
 
         except Exception as e:

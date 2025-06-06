@@ -1,6 +1,10 @@
 import socket
 import threading
 from password_utils import verificar_password
+from db_cliente import crear_tunel, obtener_tunel_por_nombre, guardar_uuid_localmente, get_client_uuid
+import requests
+import json
+
 
 class TunnelClient:
     def __init__(self, host, port, tunnel_id, alias, on_receive_callback):
@@ -18,7 +22,21 @@ class TunnelClient:
             "tunnel_id": self.tunnel_id,
             "alias": self.alias
         }
-        self.socket.sendall((str(handshake).replace("'", '"')).encode())
+        from main import obtener_info_equipo
+
+        info = obtener_info_equipo()
+        try:
+            requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json={
+                "uuid": info["uuid"],
+                "tunnel_id": self.tunnel_id,
+                "alias": self.alias
+            })
+        except Exception as e:
+            print("⚠️ No se pudo registrar alias:", e)
+        
+        
+        self.socket.sendall((json.dumps(handshake) + "\n").encode("utf-8"))
+
         self.running = True
         threading.Thread(target=self.receive_loop, daemon=True).start()
 
@@ -38,6 +56,10 @@ class TunnelClient:
 
     def send(self, message):
         self.socket.sendall(message.encode())
+
+    def on_receive_callback(self, data):
+        registrar_mensaje(self.tunnel_id, info["uuid"], self.alias, data.decode("utf-8"), tipo="texto")
+
 
     def disconnect(self):
         self.running = False
