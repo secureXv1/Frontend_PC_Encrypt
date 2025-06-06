@@ -107,28 +107,16 @@ class TunnelPanel(QtWidgets.QWidget):
             return
 
         try:
-            print("🔎 Buscando túnel...")
-
-            try:
-                tunel = obtener_tunel_por_nombre(nombre)
-            except Exception as db_error:
-                import traceback
-                traceback.print_exc()
-                QtWidgets.QMessageBox.critical(self, "Error", f"Error al buscar túnel:\n{db_error}")
-                return
-
-            print("📡 Túnel encontrado:", tunel)
-
+            tunel = obtener_tunel_por_nombre(nombre)
             if not tunel:
-                QtWidgets.QMessageBox.warning(self, "Error", "❌ Túnel no encontrado.")
+                print("❌ Túnel no encontrado.")
                 return
 
             if not verificar_password(password, tunel["password_hash"]):
-                QtWidgets.QMessageBox.warning(self, "Error", "❌ Contraseña incorrecta.")
+                print("❌ Contraseña incorrecta.")
                 return
 
-            print("🔐 Contraseña verificada. Creando cliente...")
-
+            # Crear cliente y conectar
             self.cliente = TunnelClient(
                 host="symbolsaps.ddns.net",
                 port=5050,
@@ -136,22 +124,17 @@ class TunnelPanel(QtWidgets.QWidget):
                 alias=alias,
                 on_receive_callback=self.recibir_mensaje
             )
-
-            print("🌐 Conectando...")
             self.cliente.connect()
-            print("✅ Conexión establecida")
 
+            # Mostrar área de chat
             self.chat_area.show()
             self.chat_input.show()
             self.btn_send.show()
             self.chat_area.append(f"✅ Conectado al túnel '{nombre}' como {alias}")
 
         except Exception as e:
-            print("❌ Error crítico al conectar:")
-            import traceback
-            traceback.print_exc()  # imprime stack completo en consola
-            QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo conectar al túnel:\n{str(e)}")
-
+            print("❌ No se pudo conectar al túnel:")
+            print(e)
 
     def enviar_mensaje(self):
         mensaje = self.chat_input.text().strip()
