@@ -1,9 +1,12 @@
 import os
 import base64
 import json
+import requests
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QFileDialog, QHBoxLayout
 )
+from db_cliente import get_client_uuid
+
 
 class ChatWindow(QWidget):
     def __init__(self, alias, client, tunnel_id, uuid):
@@ -62,23 +65,38 @@ class ChatWindow(QWidget):
             return
 
         try:
+            
+            from os.path import basename
+            from db_cliente import get_client_uuid
+
+            filename = basename(ruta_archivo)
             with open(ruta_archivo, "rb") as f:
-                contenido = f.read()
+                files = {"file": (filename, f)}
+                data = {
+                    "alias": self.alias,
+                    "tunnel_id": self.tunnel_id,
+                    "uuid": get_client_uuid()
+                }
+                response = requests.post("http://symbolsaps.ddns.net:8000/api/upload-file", files=files, data=data)
 
-            b64_data = base64.b64encode(contenido).decode()
-            nombre = os.path.basename(ruta_archivo)
-            ext = os.path.splitext(nombre)[1]
+            if response.status_code != 200:
+                self.mostrar_mensaje("⚠️ Error al subir el archivo al servidor")
+                return
 
+            resp_json = response.json()
+            url = resp_json.get("url")
+            filename = resp_json.get("filename")
+
+            # Enviar por socket solo los metadatos, sin incluir el contenido
             mensaje = {
                 "type": "file",
                 "from": self.alias,
-                "filename": nombre,
-                "ext": ext,
-                "data": b64_data
+                "filename": filename,
+                "url": url
             }
-
             self.client.send(json.dumps(mensaje) + "\n")
-            self.mostrar_mensaje(f"🧑 Tú enviaste un archivo: {nombre}")
+            self.mostrar_mensaje(f"🧑 Tú enviaste un archivo: {filename} 📎")
+
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al adjuntar archivo: {e}")
 
@@ -94,14 +112,30 @@ class ChatWindow(QWidget):
 
             elif tipo == "file":
                 nombre = mensaje.get("filename", "archivo")
-                b64_data = mensaje.get("data", "")
+                url = mensaje.get("url")
 
+                if not url:
+                    self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} (sin enlace)")
+                    return
+
+                # Mostrar mensaje clickable
                 self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎")
+                
+                # Intentar descargar al instante
+                respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
+                if respuesta.status_code != 200:
+                    self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
+                    return
 
+                # Preguntar dónde guardar el archivo
+                from PyQt5.QtWidgets import QFileDialog
                 ruta_guardado, _ = QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
                 if ruta_guardado:
                     with open(ruta_guardado, "wb") as f:
-                        f.write(base64.b64decode(b64_data))
+                        for chunk in respuesta.iter_content(chunk_size=8192):
+                            f.write(chunk)
                     self.mostrar_mensaje(f"✅ Archivo guardado como: {ruta_guardado}")
+
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al procesar mensaje: {e}")
+

@@ -93,8 +93,7 @@ class TunnelPanel(QtWidgets.QWidget):
 
         self.btn_attach = QtWidgets.QPushButton("📎")
         self.btn_attach.setToolTip("Adjuntar archivo")
-        self.btn_attach.clicked.connect(self.enviar_archivo)
-
+        
         self.btn_send = QtWidgets.QPushButton("Enviar")
         self.btn_send.clicked.connect(self.enviar_mensaje)
 
@@ -184,49 +183,25 @@ class TunnelPanel(QtWidgets.QWidget):
             elif tipo == "file":
                 nombre = data.get("filename", "archivo")
                 b64_data = data.get("data", "")
-
+                remitente = data.get("from", "Desconocido")
+                
                 self.chat_area.append(f"{remitente} envió un archivo: {nombre} 📎")
 
-                ruta_guardado, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
-                if ruta_guardado:
-                    with open(ruta_guardado, "wb") as f:
-                        f.write(base64.b64decode(b64_data))
-                    self.chat_area.append(f"✅ Archivo guardado en: {ruta_guardado}")
+                def guardar():
+                    ruta_guardado, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
+                    if ruta_guardado:
+                        try:
+                            with open(ruta_guardado, "wb") as f:
+                                f.write(base64.b64decode(b64_data))
+                            self.chat_area.append(f"✅ Archivo guardado en: {ruta_guardado}")
+                        except Exception as e:
+                            self.chat_area.append(f"❌ Error al guardar archivo: {e}")
+
+                # Ejecutar guardar() en el hilo principal
+                QtCore.QTimer.singleShot(0, guardar)
 
         except Exception as e:
             self.chat_area.append(f"⚠️ Mensaje recibido inválido: {mensaje}")
-
-    def enviar_archivo(self):
-        if not self.cliente:
-            self.chat_area.append("⚠️ No estás conectado a ningún túnel.")
-            return
-
-        ruta_archivo, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Seleccionar archivo", "", "Todos los archivos (*)")
-        if not ruta_archivo:
-            return
-
-        try:
-            with open(ruta_archivo, "rb") as f:
-                contenido = f.read()
-
-            b64_data = base64.b64encode(contenido).decode()
-            nombre = os.path.basename(ruta_archivo)
-            ext = os.path.splitext(nombre)[1]
-            alias = self.input_alias.text().strip() or "Tú"
-
-            mensaje = {
-                "type": "file",
-                "from": alias,
-                "filename": nombre,
-                "ext": ext,
-                "data": b64_data
-            }
-
-            self.cliente.send(json.dumps(mensaje) + "\n")
-            self.chat_area.append(f"🧑 Tú enviaste un archivo: {nombre}")
-
-        except Exception as e:
-            self.chat_area.append(f"⚠️ Error al adjuntar archivo: {e}")
 
 #Panel principal - Cifrado
 class MainWindow(QtWidgets.QMainWindow):
