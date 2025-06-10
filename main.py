@@ -471,10 +471,10 @@ class MainWindow(QtWidgets.QMainWindow):
             with open(save_path, "wb") as out:
                 out.write(file_data)
 
-            QtWidgets.QMessageBox.information(self, "✅ Éxito", f"Archivo descifrado guardado en:\n{save_path}")
+            QtWidgets.QMessageBox.information(self, "Éxito", f"Archivo descifrado guardado en:\n{save_path}")
 
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "❌ Error", f"No se pudo descifrar el archivo:\n{str(e)}")
+            QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo descifrar el archivo:\n{str(e)}")
 
 
 
@@ -552,22 +552,15 @@ class MainWindow(QtWidgets.QMainWindow):
             
             cifrado_data = contenido[idx + len(delimiter):]
 
-            #Intentar obtener la extensión desde el archivo cifrado (sin descifrar)
-            try:
-                json_payload = json.loads(cifrado_data.decode())
-                ext = json_payload.get("ext", "")
-                if ext and not ext.startswith("."):
-                    ext = f".{ext}"
-            except:
-                ext = ".json"
-            
-                      
-            #Proponer un nombre de archivo con la extensión detectada
+            #Forzar extensión del archivo extraido (.json)
+            ext = ".json"
+
+            #Proponer un nombre de archivo con extensión .json
             output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self,
-            "Guardar archivo extraído",
-            f"extraido{ext}",
-            f"Archivo Cifrado (*{ext});;Todos los archivos (*)"
+                self,
+                "Guardar archivo extraido",
+                "extraido.json",
+                "Archivo Cifrado (*.json);; All Files (*)"
             )
             
             if not output_path:
@@ -645,7 +638,7 @@ def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):
     with open(output_path, "w") as out:
         json.dump(payload, out)
 
-    print(f"✅ Archivo cifrado guardado en {output_path}")
+    print(f"Archivo cifrado guardado en {output_path}")
 
 
 
