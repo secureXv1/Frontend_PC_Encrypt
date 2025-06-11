@@ -10,7 +10,8 @@ from ui.panels.settings_panel import SettingsPanel
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("BETTY - Simulador PGP Educativo")
+        self.resize(1600, 1000)
+        self.setWindowTitle("Encrypt")
         self.setGeometry(100, 100, 1100, 650)
 
         main_widget = QtWidgets.QWidget()
@@ -43,45 +44,38 @@ def main():
     app.setStyleSheet("""
         QWidget {
             background-color: #121212;
-            color: #f0f0f0;
-            font-family: 'Segoe UI', 'Roboto', sans-serif;
-            font-size: 14px;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 13px;
         }
         QPushButton {
-            background-color: #1f1f1f;
-            color: #f0f0f0;
-            border-radius: 8px;
-            padding: 10px;
-            border: 1px solid #2a2a2a;
+            background-color: #333;
+            color: white;
+            border-radius: 6px;
+            padding: 6px 12px;
         }
         QPushButton:hover {
-            background-color: #292929;
-            border: 1px solid #3f3f3f;
+            background-color: #444;
         }
         QLineEdit, QTextEdit {
             background-color: #1e1e1e;
-            border: 1px solid #333;
-            border-radius: 6px;
+            color: white;
+            border: 1px solid #2c2c2c;
+            border-radius: 4px;
             padding: 6px;
-            color: #ffffff;
         }
-        QListWidget {
-            background-color: #1e1e1e;
-            border: 1px solid #333;
-            color: #ffffff;
-            padding: 4px;
+        QScrollArea {
+            background-color: #1a1a1a;
         }
         QLabel {
             font-weight: bold;
+            color: #b0b0b0;
         }
-        QGroupBox {
-            margin-top: 20px;
-            border: 1px solid #333;
+        QFrame {
+            background-color: #1f1f1f;
             border-radius: 10px;
-            padding: 10px;
         }
     """)
-
 
     window = MainWindow()
     window.show()
