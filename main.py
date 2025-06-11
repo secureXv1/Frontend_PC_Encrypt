@@ -85,14 +85,21 @@ class TunnelPanel(QtWidgets.QWidget):
         btn_layout.addWidget(self.btn_connect)
         self.layout().addLayout(btn_layout)
 
+        # Área de chat
         self.chat_area = QtWidgets.QTextEdit()
         self.chat_area.setReadOnly(True)
         self.chat_input = QtWidgets.QLineEdit()
         self.chat_input.setPlaceholderText("Escribe un mensaje...")
+
+        self.btn_attach = QtWidgets.QPushButton("📎")
+        self.btn_attach.setToolTip("Adjuntar archivo")
+        
         self.btn_send = QtWidgets.QPushButton("Enviar")
+        self.btn_send.clicked.connect(self.enviar_mensaje)
 
         chat_input_layout = QtWidgets.QHBoxLayout()
         chat_input_layout.addWidget(self.chat_input)
+        chat_input_layout.addWidget(self.btn_attach)
         chat_input_layout.addWidget(self.btn_send)
 
         self.layout().addWidget(QtWidgets.QLabel("💬 Chat del Túnel"))
@@ -103,14 +110,15 @@ class TunnelPanel(QtWidgets.QWidget):
         self.chat_area.hide()
         self.chat_input.hide()
         self.btn_send.hide()
+        self.btn_attach.hide()
 
-        # Conectar botones
+        # Conectar botones de túneles
         self.btn_create.clicked.connect(self.parent.crear_tunel_desde_ui)
         self.btn_connect.clicked.connect(self.unirse_a_tunel_desde_ui)
-        self.btn_send.clicked.connect(self.enviar_mensaje)
 
-        # Cliente de túnel
+        # Cliente del túnel
         self.cliente = None
+
 
     def unirse_a_tunel_desde_ui(self):
         nombre = self.input_name.text().strip()
@@ -145,6 +153,7 @@ class TunnelPanel(QtWidgets.QWidget):
             self.chat_area.show()
             self.chat_input.show()
             self.btn_send.show()
+            self.btn_attach.show()
             self.chat_area.append(f"✅ Conectado al túnel '{nombre}' como {alias}")
 
         except Exception as e:
@@ -163,8 +172,36 @@ class TunnelPanel(QtWidgets.QWidget):
                 self.chat_area.append("⚠️ Error al enviar el mensaje")
 
     def recibir_mensaje(self, mensaje):
-        self.chat_area.append(mensaje)
+        try:
+            data = json.loads(mensaje)
+            tipo = data.get("type", "text")
+            remitente = data.get("from", "Desconocido")
 
+            if tipo == "text":
+                self.chat_area.append(f"{remitente}: {data.get('text', '')}")
+
+            elif tipo == "file":
+                nombre = data.get("filename", "archivo")
+                b64_data = data.get("data", "")
+                remitente = data.get("from", "Desconocido")
+                
+                self.chat_area.append(f"{remitente} envió un archivo: {nombre} 📎")
+
+                def guardar():
+                    ruta_guardado, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
+                    if ruta_guardado:
+                        try:
+                            with open(ruta_guardado, "wb") as f:
+                                f.write(base64.b64decode(b64_data))
+                            self.chat_area.append(f"✅ Archivo guardado en: {ruta_guardado}")
+                        except Exception as e:
+                            self.chat_area.append(f"❌ Error al guardar archivo: {e}")
+
+                # Ejecutar guardar() en el hilo principal
+                QtCore.QTimer.singleShot(0, guardar)
+
+        except Exception as e:
+            self.chat_area.append(f"⚠️ Mensaje recibido inválido: {mensaje}")
 
 #Panel principal - Cifrado
 class MainWindow(QtWidgets.QMainWindow):
@@ -259,19 +296,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
             tunel_id = tunel["id"]
 
-            # Conectamos al servidor de túnel
-            self.cliente = TunnelClient(
-                host="symbolsaps.ddns.net",  # cambia por IP real si no es local
+            # Crear el cliente con callback temporal (se reemplaza luego)
+            cliente = TunnelClient(
+                host="symbolsaps.ddns.net",
                 port=5050,
                 tunnel_id=tunel_id,
                 alias=alias,
-                on_receive_callback=self.recibir_mensaje
+                on_receive_callback=None
             )
-            self.cliente.connect()
 
-            # Abrir ventana de chat
-            self.chat_window = ChatWindow(alias, self.cliente.sock, tunel_id)
+            # Crear la ventana del chat y pasarle el cliente
+            chat_window = ChatWindow(alias, cliente, tunel_id, cliente.uuid)
+
+            # Conectar callback real
+            cliente.on_receive_callback = chat_window.procesar_mensaje
+            cliente.connect()
+
+            # Mostrar la ventana
+            self.chat_window = chat_window
             self.chat_window.show()
+            self.cliente = cliente
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo conectar al túnel:\n{e}")

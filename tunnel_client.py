@@ -12,7 +12,7 @@ class TunnelClient:
         self.port = port
         self.tunnel_id = tunnel_id
         self.alias = alias
-        self.on_receive_callback = on_receive_callback
+        self.on_receive_callback = on_receive_callback  # ← puede ser ChatWindow.procesar_mensaje
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.running = False
 
@@ -21,8 +21,8 @@ class TunnelClient:
         
         from main import obtener_info_equipo
         info = obtener_info_equipo()
+        self.uuid = info["uuid"]
 
-        # 🔐 Handshake completo
         handshake = {
             "tunnel_id": self.tunnel_id,
             "alias": self.alias,
@@ -31,7 +31,6 @@ class TunnelClient:
             "sistema": info["sistema"]
         }
 
-        # Registrar alias por API
         try:
             requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json={
                 "uuid": info["uuid"],
@@ -41,19 +40,22 @@ class TunnelClient:
         except Exception as e:
             print("⚠️ No se pudo registrar alias:", e)
 
-        # Enviar handshake por socket
         self.socket.sendall((json.dumps(handshake) + "\n").encode("utf-8"))
         self.running = True
         threading.Thread(target=self.receive_loop, daemon=True).start()
 
     def receive_loop(self):
         try:
+            buffer = ""
             while self.running:
                 data = self.socket.recv(4096)
                 if not data:
                     break
-                mensaje = data.decode()
-                self.on_receive_callback(mensaje)
+                buffer += data.decode()
+
+                while "\n" in buffer:
+                    mensaje, buffer = buffer.split("\n", 1)
+                    self.on_receive_callback(mensaje.strip())
         except Exception as e:
             print(f"Error en receive_loop: {e}")
         finally:
@@ -62,10 +64,6 @@ class TunnelClient:
 
     def send(self, message):
         self.socket.sendall(message.encode())
-
-    def on_receive_callback(self, data):
-        registrar_mensaje(self.tunnel_id, info["uuid"], self.alias, data.decode("utf-8"), tipo="texto")
-
 
     def disconnect(self):
         self.running = False
