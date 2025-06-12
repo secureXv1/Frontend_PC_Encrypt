@@ -2,6 +2,7 @@ import os
 import base64
 import json
 import requests
+import time
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QFileDialog, QHBoxLayout
 )
@@ -50,11 +51,14 @@ class ChatWindow(QWidget):
             mensaje = {
                 "type": "text",
                 "from": self.alias,
-                "text": texto
+                "uuid": get_client_uuid(),
+                "tunnel_id": self.tunnel_id,
+                "text": texto,
+                "enviado_en": int(time.time() * 1000)
             }
             try:
                 self.client.send(json.dumps(mensaje) + "\n")
-                self.mostrar_mensaje(f"🧑 Tú: {texto}")
+                self.mostrar_mensaje(f"{texto}")
                 self.input_field.clear()
             except Exception as e:
                 self.mostrar_mensaje(f"⚠️ Error al enviar el mensaje: {e}")
@@ -91,11 +95,14 @@ class ChatWindow(QWidget):
             mensaje = {
                 "type": "file",
                 "from": self.alias,
+                "uuid": get_client_uuid(),
+                "tunnel_id": self.tunnel_id,
                 "filename": filename,
-                "url": url
+                "url": url,
+                "enviado_en": int(time.time() * 1000)
             }
             self.client.send(json.dumps(mensaje) + "\n")
-            self.mostrar_mensaje(f"🧑 Tú enviaste un archivo: {filename} 📎")
+            self.mostrar_mensaje(f"Enviaste un archivo: {filename} 📎")
 
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al adjuntar archivo: {e}")

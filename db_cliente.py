@@ -1,6 +1,9 @@
 import mysql.connector
 import os
 import requests
+import uuid
+import socket
+import platform
 
 def get_connection():
     return mysql.connector.connect(
@@ -10,7 +13,6 @@ def get_connection():
         database='securex'
     )
 
-# 🚀 Crear un nuevo túnel
 def crear_tunel(nombre, password_hash):
     conn = get_connection()
     cursor = conn.cursor()
@@ -24,46 +26,38 @@ def crear_tunel(nombre, password_hash):
     conn.close()
     return tunnel_id
 
-# 🔎 Consultar túnel por nombre
 def obtener_tunel_por_nombre(nombre):
-    import traceback
-    try:
-        conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM tunnels WHERE name = %s", (nombre,))
-        tunel = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        return tunel
-    except Exception as e:
-        print("❌ Error en obtener_tunel_por_nombre:")
-        traceback.print_exc()
-        raise
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM tunnels WHERE name = %s", (nombre,))
+    tunel = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return tunel
 
-
-# 💾 Guardar el UUID localmente
-def guardar_uuid_localmente(uuid):
+def guardar_uuid_localmente(uuid_value):
     path = os.path.expanduser("~/.betty")
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, ".uuid"), "w") as f:
-        f.write(uuid)
+        f.write(uuid_value)
 
-# 📥 Obtener UUID guardado localmente
 def get_client_uuid():
     path = os.path.expanduser("~/.betty/.uuid")
-    if os.path.exists(path):
+    if not os.path.exists(path):
+        new_uuid = str(uuid.uuid4())
+        guardar_uuid_localmente(new_uuid)
+        print(f"🆕 UUID generado: {new_uuid}")
+        return new_uuid
+    else:
         with open(path, "r") as f:
             return f.read().strip()
-    else:
-        return None
 
-# 🌐 Registrar cliente en el backend
-def registrar_cliente(uuid, hostname, sistema):
+def registrar_cliente(uuid_value, hostname, sistema):
     try:
         response = requests.post(
             "http://symbolsaps.ddns.net:8000/api/registrar_cliente",
             json={
-                "uuid": uuid,
+                "uuid": uuid_value,
                 "hostname": hostname,
                 "sistema": sistema
             }
@@ -73,10 +67,9 @@ def registrar_cliente(uuid, hostname, sistema):
     except Exception as e:
         print(f"❌ Error al registrar cliente en el backend: {e}")
 
-def registrar_alias_cliente(uuid, tunnel_id, alias):
-    import requests
+def registrar_alias_cliente(uuid_value, tunnel_id, alias):
     payload = {
-        "uuid": uuid,
+        "uuid": uuid_value,
         "tunnel_id": tunnel_id,
         "alias": alias
     }
@@ -86,3 +79,9 @@ def registrar_alias_cliente(uuid, tunnel_id, alias):
         print("✅ Alias registrado correctamente")
     except Exception as e:
         print("❌ Error al registrar alias:", e)
+
+def obtener_info_equipo():
+    return {
+        "hostname": socket.gethostname(),
+        "sistema": platform.system() + " " + platform.release()
+    }

@@ -7,33 +7,33 @@ import json
 
 
 class TunnelClient:
-    def __init__(self, host, port, tunnel_id, alias, on_receive_callback):
+    def __init__(self, host, port, tunnel_id, alias, uuid, on_receive_callback):
         self.host = host
         self.port = port
         self.tunnel_id = tunnel_id
         self.alias = alias
-        self.on_receive_callback = on_receive_callback  # ← puede ser ChatWindow.procesar_mensaje
+        self.uuid = uuid  # ✅ ahora se define desde el inicio
+        self.on_receive_callback = on_receive_callback
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.running = False
+        self.running = False  
 
     def connect(self):
         self.socket.connect((self.host, self.port))
-        
-        from main import obtener_info_equipo
+
+        from main_refactor import obtener_info_equipo
         info = obtener_info_equipo()
-        self.uuid = info["uuid"]
 
         handshake = {
             "tunnel_id": self.tunnel_id,
             "alias": self.alias,
-            "uuid": info["uuid"],
+            "uuid": self.uuid,
             "hostname": info["hostname"],
             "sistema": info["sistema"]
         }
 
         try:
             requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json={
-                "uuid": info["uuid"],
+                "uuid": self.uuid,
                 "tunnel_id": self.tunnel_id,
                 "alias": self.alias
             })

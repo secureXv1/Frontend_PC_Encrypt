@@ -55,11 +55,17 @@ class TunnelCard(QFrame):
         self.setPalette(palette)
 
 class TunnelPanel(QWidget):
-    def __init__(self, parent=None):
-        super().__init__()
+    def __init__(self, uuid, hostname, sistema, parent=None):
+        super().__init__(parent)
+        self.uuid = uuid
+        self.hostname = hostname
+        self.sistema = sistema
         self.parent = parent
         self.conexiones_tuneles = {}
         self.cliente = None
+
+        from db_cliente import get_client_uuid
+        _ = get_client_uuid()  # 👈 Esto asegura que se registre el cliente
 
         main_layout = QHBoxLayout(self)
 
@@ -145,10 +151,15 @@ class TunnelPanel(QWidget):
             QMessageBox.warning(self, "Error", "Nombre y contraseña requeridos")
             return
         try:
+            from db_cliente import get_client_uuid
+            uuid = get_client_uuid()
+
             response = requests.post("http://symbolsaps.ddns.net:8000/api/tunnels/create", json={
                 "name": nombre,
-                "password": clave
+                "password": clave,
+                "uuid": uuid  # 👈 necesario para que el backend lo reciba
             })
+
             if response.status_code == 201:
                 QMessageBox.information(self, "Túnel creado", f"🔐 Túnel '{nombre}' creado exitosamente.")
                 self.actualizar_lista_tuneles()
@@ -222,17 +233,22 @@ class TunnelPanel(QWidget):
         try:
             nombre = tunel["name"]  # ✅ Aquí se define
 
+            from db_cliente import get_client_uuid, registrar_alias_cliente
+            uuid = get_client_uuid()
+
             self.cliente = TunnelClient(
                 host="symbolsaps.ddns.net",
                 port=5050,
                 tunnel_id=tunel["id"],
                 alias=alias,
+                uuid=uuid,  # ✅ Aquí se pasa el uuid requerido
                 on_receive_callback=self.recibir_mensaje
             )
 
             self.cliente.connect()
-            
-            self.users_list.addItem(f"🧑 {alias} (tú)")
+            registrar_alias_cliente(uuid, tunel["id"], alias)
+
+            self.users_list.addItem(f"{alias} (tú)")
 
             tab = QWidget()
             layout = QVBoxLayout(tab)
@@ -395,15 +411,23 @@ class TunnelPanel(QWidget):
                 raise Exception(join_resp.text)
             
             nombre = tunel["name"]
+            from db_cliente import get_client_uuid, registrar_alias_cliente
+            uuid = get_client_uuid()
+
             self.cliente = TunnelClient(
                 host="symbolsaps.ddns.net",
                 port=5050,
                 tunnel_id=tunel["id"],
                 alias=alias,
+                uuid=uuid,  # ✅ Aquí se pasa el uuid requerido
                 on_receive_callback=self.recibir_mensaje
             )
+
             self.cliente.connect()
-            self.users_list.addItem(f"🧑 {alias} (tú)")
+            registrar_alias_cliente(uuid, tunel["id"], alias)
+
+
+            self.users_list.addItem(f"{alias} (tú)")
             dialog.accept()
 
         except Exception as e:
@@ -439,8 +463,7 @@ class TunnelPanel(QWidget):
         cliente = self.conexiones_tuneles[tunel_id]["cliente"]
         try:
             cliente.socket.sendall(mensaje.encode())
-            chat_area.append(f"🧑 Tú: {mensaje}")
+            chat_area.append(f"{mensaje}")
             input_field.clear()
         except Exception as e:
             chat_area.append(f"⚠️ Error al enviar mensaje: {e}")
-

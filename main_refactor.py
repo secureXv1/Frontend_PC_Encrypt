@@ -1,4 +1,5 @@
 from PyQt5 import QtWidgets
+from db_cliente import get_client_uuid, obtener_info_equipo
 import sys
 from ui.sidebar import Sidebar
 from ui.panels.home_panel import HomePanel
@@ -6,9 +7,8 @@ from ui.panels.tunnel_panel import TunnelPanel
 from ui.panels.encryption_panel import EncryptionPanel
 from ui.panels.settings_panel import SettingsPanel
 
-
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, uuid, hostname, sistema):
         super().__init__()
         self.resize(1600, 1000)
         self.setWindowTitle("Encrypt")
@@ -18,29 +18,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(main_widget)
         layout = QtWidgets.QHBoxLayout(main_widget)
 
-        # 1. Crear primero el QStackedWidget
+        # Crear páginas
         self.pages = QtWidgets.QStackedWidget()
+        self.pages.addWidget(HomePanel())  # index 0
+        self.pages.addWidget(TunnelPanel(uuid=uuid, hostname=hostname, sistema=sistema))  # index 1
+        self.pages.addWidget(EncryptionPanel())  # index 2
+        self.pages.addWidget(SettingsPanel())  # index 3
 
-        # 2. Agregar las páginas
-        self.pages.addWidget(HomePanel())         # index 0
-        self.pages.addWidget(TunnelPanel(self))   # index 1
-        self.pages.addWidget(EncryptionPanel())   # index 2
-        self.pages.addWidget(SettingsPanel())     # index 3
-
-        # 3. Ahora que `pages` existe, se puede crear el Sidebar
         sidebar = Sidebar(self.cambiar_pagina)
-
-        # 4. Añadir al layout
         layout.addWidget(sidebar, 1)
         layout.addWidget(self.pages, 5)
 
     def cambiar_pagina(self, index):
         self.pages.setCurrentIndex(index)
-
-
+        
 def main():
     app = QtWidgets.QApplication(sys.argv)
 
+    # Datos del cliente
+    uuid = get_client_uuid()
+    info = obtener_info_equipo()
+
+    # Estilos
     app.setStyleSheet("""
         QWidget {
             background-color: #121212;
@@ -77,10 +76,10 @@ def main():
         }
     """)
 
-    window = MainWindow()
+    # Lanza MainWindow que incluye el sidebar y las páginas
+    window = MainWindow(uuid=uuid, hostname=info["hostname"], sistema=info["sistema"])
     window.show()
     sys.exit(app.exec_())
-
 
 if __name__ == "__main__":
     main()
