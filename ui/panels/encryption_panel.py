@@ -27,6 +27,11 @@ from cryptography.hazmat.backends import default_backend
 import hashlib
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtWidgets import QInputDialog
+from PyQt5.QtWidgets import QLabel, QHBoxLayout, QWidget
+from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtWidgets import QLabel
+
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Clave pública maestra
@@ -120,12 +125,24 @@ class EncryptionPanel(QWidget):
         if not input_file:
             return
 
-        # Preguntar al usuario si desea usar cifrado con contraseña
-        use_password = QtWidgets.QMessageBox.question(
-            self, "Método de cifrado",
-            "¿Deseas cifrar con contraseña en lugar de clave pública?",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
-        )
+        # Repetir hasta que el usuario elija una opción válida o cancele
+        while True:
+            metodo, ok = QtWidgets.QInputDialog.getItem(
+                self,
+                "Método de cifrado",
+                "¿Qué método de cifrado desea utilizar?",
+                ["Seleccione una Opción: ...", "Llave de seguridad", "Contraseña"],
+                editable=False
+            )
+            if not ok:
+                return  # El usuario canceló
+            if metodo == "Seleccione una Opción: ...":
+                QtWidgets.QMessageBox.warning(
+                    self, "Método requerido",
+                    "Por favor seleccione un método de cifrado válido."
+                )
+            else:
+                break  # opción válida
 
         # Seleccionar ubicación de guardado
         output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
@@ -136,35 +153,16 @@ class EncryptionPanel(QWidget):
             return
 
         try:
-            if use_password == QtWidgets.QMessageBox.Yes:
+            if metodo == "Contraseña":
                 # Cifrado con contraseña
                 dlg = PasswordDialog()
                 if dlg.exec_() == QtWidgets.QDialog.Accepted:
                     password = dlg.get_password()
-
-                    # Intentar cifrar la contraseña con la clave maestra embebida (silenciosamente)
-                    encrypted_pwd_hex = None
-                    try:
-                        master_key = serialization.load_pem_public_key(MASTER_PUBLIC_KEY_PEM)
-                        encrypted_pwd = master_key.encrypt(
-                            password.encode(),
-                            padding.OAEP(
-                                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                                algorithm=hashes.SHA256(),
-                                label=None
-                            )
-                        )
-                        encrypted_pwd_hex = encrypted_pwd.hex()
-                    except Exception:
-                        pass  # No exponer la existencia de la clave maestra
-
-                    cifrar_archivo_con_password(input_file, password, output_path, encrypted_pwd_hex)
-
+                    cifrar_archivo_con_password(input_file, password, output_path)
                     QtWidgets.QMessageBox.information(
                         self, "Éxito",
                         f"Archivo cifrado con contraseña guardado en:\n{output_path}"
                     )
-
             else:
                 # Cifrado con clave pública
                 public_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -175,10 +173,9 @@ class EncryptionPanel(QWidget):
                     return
 
                 cifrar_archivo_con_rsa(input_file, public_key_path, output_path)
-
                 QtWidgets.QMessageBox.information(
                     self, "Éxito",
-                    f"Archivo cifrado con clave pública guardado en:\n{output_path}"
+                    f"Archivo cifrado con llave de seguridad guardado en:\n{output_path}"
                 )
 
         except Exception as e:
@@ -208,6 +205,7 @@ class EncryptionPanel(QWidget):
             encrypted_data = bytes.fromhex(payload["data"])
             ext = payload.get("ext", "")
             decrypted_serialized = None
+            user_password = None  # se usa si lo descifra un admin
 
             # === CIFRADO CON CONTRASEÑA ===
             if "salt_user" in payload and "salt_admin" in payload and "encrypted_user_password" in payload:
@@ -215,37 +213,46 @@ class EncryptionPanel(QWidget):
                 salt_admin = base64.b64decode(payload["salt_admin"])
                 encrypted_pwd_bytes = bytes.fromhex(payload["encrypted_user_password"])
 
-                dlg = PasswordDialog(confirm=False)
-                if dlg.exec_() != QtWidgets.QDialog.Accepted:
-                    return
-                password_input = dlg.get_password()
+                intentos = 0
+                max_intentos = 3
+                while intentos < max_intentos:
+                    dlg = PasswordDialog(confirm=False)
+                    if dlg.exec_() != QtWidgets.QDialog.Accepted:
+                        return
+                    password_input = dlg.get_password()
 
-                try:
-                    # 1️⃣ Intentar con contraseña del usuario
-                    kdf_user = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt_user, iterations=100000)
-                    aes_key_user = base64.urlsafe_b64encode(kdf_user.derive(password_input.encode()))
-                    fernet_user = Fernet(aes_key_user)
-                    decrypted_serialized = fernet_user.decrypt(encrypted_data)
-
-                except Exception:
                     try:
-                        # 2️⃣ Intentar como administrador
-                        kdf_admin = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt_admin, iterations=100000)
-                        aes_key_admin = base64.urlsafe_b64encode(kdf_admin.derive(password_input.encode()))
-                        fernet_admin = Fernet(aes_key_admin)
-
-                        # Recuperar contraseña real del usuario
-                        user_password = fernet_admin.decrypt(encrypted_pwd_bytes).decode()
-                        print(f"[ADMIN] Contraseña del usuario: {user_password}")
-
-                        # Usar la contraseña del usuario para descifrar
+                        # 1️⃣ Intentar con contraseña del usuario
                         kdf_user = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt_user, iterations=100000)
-                        aes_key_user = base64.urlsafe_b64encode(kdf_user.derive(user_password.encode()))
+                        aes_key_user = base64.urlsafe_b64encode(kdf_user.derive(password_input.encode()))
                         fernet_user = Fernet(aes_key_user)
                         decrypted_serialized = fernet_user.decrypt(encrypted_data)
+                        break  # ✅ Éxito usuario
 
                     except Exception:
-                        raise Exception("La contraseña es incorrecta.")
+                        try:
+                            # 2️⃣ Intentar como administrador
+                            kdf_admin = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt_admin, iterations=100000)
+                            aes_key_admin = base64.urlsafe_b64encode(kdf_admin.derive(password_input.encode()))
+                            fernet_admin = Fernet(aes_key_admin)
+
+                            # Recuperar contraseña real del usuario
+                            user_password = fernet_admin.decrypt(encrypted_pwd_bytes).decode()
+
+                            # Usar contraseña del usuario para descifrar
+                            kdf_user = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt_user, iterations=100000)
+                            aes_key_user = base64.urlsafe_b64encode(kdf_user.derive(user_password.encode()))
+                            fernet_user = Fernet(aes_key_user)
+                            decrypted_serialized = fernet_user.decrypt(encrypted_data)
+                            break  # ✅ Éxito como admin
+
+                        except Exception:
+                            intentos += 1
+                            if intentos < max_intentos:
+                                QtWidgets.QMessageBox.warning(self, "Contraseña incorrecta", f"Intenta nuevamente ({intentos}/{max_intentos})")
+                            else:
+                                QtWidgets.QMessageBox.critical(self, "Error", "No se pudo descifrar el archivo tras varios intentos.")
+                                return
 
             # === CIFRADO CON CLAVE PÚBLICA ===
             elif "key_user" in payload and "key_master" in payload:
@@ -290,6 +297,12 @@ class EncryptionPanel(QWidget):
                 out.write(file_data)
 
             QtWidgets.QMessageBox.information(self, "Éxito", f"Archivo descifrado guardado como:\n{save_path}")
+
+            # === MOSTRAR Y COPIAR CONTRASEÑA DEL USUARIO (si fue como admin) ===
+            if user_password:
+                QtWidgets.QApplication.clipboard().setText(user_password)
+                toast = ToastNotification("Contraseña copiada al portapapeles", parent=self)
+                toast.show()
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo descifrar el archivo:\n{str(e)}")
@@ -650,10 +663,15 @@ class PasswordDialog(QtWidgets.QDialog):
             layout.addWidget(self.confirm_input)
 
             self.strength_bar = QtWidgets.QProgressBar()
-            self.strength_bar.setTextVisible(True)
             self.strength_bar.setRange(0, 100)
-            self.strength_bar.setFormat("Débil")
+            self.strength_bar.setTextVisible(False)
+            self.strength_bar.hide()
+
+            self.strength_label = QtWidgets.QLabel("")
+            self.strength_label.hide()
+
             layout.addWidget(self.strength_bar)
+            layout.addWidget(self.strength_label)
 
             self.password_input.textChanged.connect(self.update_strength)
 
@@ -664,19 +682,24 @@ class PasswordDialog(QtWidgets.QDialog):
         layout.addWidget(self.button_box)
 
     def update_strength(self, text):
-        strength = 0
-        conditions = [
-            any(c.islower() for c in text),
-            any(c.isupper() for c in text),
-            any(c.isdigit() for c in text),
-            any(c in "!@#$%^&*()_+-=,.;:<>?" for c in text)
-        ]
-        strength = sum(conditions) * 25
+        if not text:
+            self.strength_bar.hide()
+            self.strength_label.hide()
+            return
+        else:
+            self.strength_bar.show()
+            self.strength_label.show()
 
-        self.strength_bar.setValue(strength)
+        has_lower = any(c.islower() for c in text)
+        has_upper = any(c.isupper() for c in text)
+        has_digit = any(c.isdigit() for c in text)
+        has_symbol = any(c in "!@#$%^&*()_+-=,.;:<>?" for c in text)
+        length_ok = len(text) >= 8
 
-        # Texto y color según nivel
-        if strength < 50:
+        strength = sum([has_lower, has_upper, has_digit, has_symbol]) * 25
+        strength = min(strength, 100)  # Limitar al 100%
+
+        if not length_ok or strength < 50:
             label = "Débil"
             color = "red"
         elif strength < 75:
@@ -686,14 +709,14 @@ class PasswordDialog(QtWidgets.QDialog):
             label = "Fuerte"
             color = "green"
 
-        # Mostrar el texto actualizado debajo
+        self.strength_bar.setValue(strength)
+        self.strength_bar.setStyleSheet(f"""
+            QProgressBar::chunk {{
+                background-color: {color};
+            }}
+        """)
         self.strength_label.setText(f"Fortaleza: {label}")
-        self.strength_label.setStyleSheet(f"color: {color}; font-weight: bold")
-
-        # Cambiar color de la barra
-        palette = self.strength_bar.palette()
-        palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor(color))
-        self.strength_bar.setPalette(palette)
+        self.strength_label.setStyleSheet(f"color: {color}; font-weight: bold;")
 
     def validate(self):
         pwd = self.password_input.text()
@@ -705,10 +728,9 @@ class PasswordDialog(QtWidgets.QDialog):
                 return
 
             if len(pwd) < 8:
-                QtWidgets.QMessageBox.warning(self, "Error", "La contraseña debe tener al menos 8 caracteres.")
+                QtWidgets.QMessageBox.warning(self, "Error", "Debe tener al menos 8 caracteres.")
                 return
 
-            # Verificar condiciones de seguridad
             conditions = [
                 any(c.islower() for c in pwd),
                 any(c.isupper() for c in pwd),
@@ -718,10 +740,13 @@ class PasswordDialog(QtWidgets.QDialog):
             strength = sum(conditions) * 25
 
             if strength < 75:
-                QtWidgets.QMessageBox.warning(self, "Error", "La contraseña debe ser más segura (media o fuerte).")
+                QtWidgets.QMessageBox.warning(self, "Error", "La contraseña debe ser más segura (nivel medio o fuerte).")
                 return
 
         self.accept()
+
+    def get_password(self):
+        return self.password_input.text()
 
 
 #clase y Función para solicitar contraseña al descifrar un archivo
@@ -749,6 +774,42 @@ class PasswordPromptDialog(QtWidgets.QDialog):
 
     def get_password(self):
         return self.password_input.text()
+
+
+class ToastNotification(QWidget):
+    def __init__(self, text, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+
+        # Layout interno con ícono y texto
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(15, 10, 15, 10)
+        layout.setSpacing(10)
+
+        icon_label = QLabel("🔐")
+        icon_label.setFont(QFont("Arial", 16))
+        layout.addWidget(icon_label)
+
+        text_label = QLabel(text)
+        text_label.setStyleSheet("color: white; font-size: 12pt;")
+        layout.addWidget(text_label)
+
+        # Estilo del fondo del toast
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #323232;
+                border-radius: 8px;
+            }
+        """)
+
+        self.adjustSize()
+
+        # Centrar en pantalla
+        screen = QtWidgets.QApplication.desktop().screenGeometry()
+        self.move(screen.center() - self.rect().center())
+
+        QTimer.singleShot(3000, self.close)  # Se oculta en 3 segundos
 
 
 #Función para cifrar contraseña con llave maestra
