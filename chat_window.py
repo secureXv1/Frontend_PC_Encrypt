@@ -141,24 +141,40 @@ class ChatWindow(QWidget):
 
     def procesar_mensaje(self, mensaje_json):
         try:
-            mensaje = json.loads(mensaje_json)
+            try:
+                mensaje = json.loads(mensaje_json)
+            except json.JSONDecodeError:
+                import ast
+                mensaje = ast.literal_eval(mensaje_json)
+
             tipo = mensaje.get("type", "text")
             remitente = mensaje.get("from", "Desconocido")
 
             if tipo == "text":
                 texto = mensaje.get("text", "")
-                self.mostrar_mensaje(f"{remitente}: {texto}")
+                self.mostrar_mensaje(texto, remitente, False, mensaje.get("enviado_en"))
 
             elif tipo == "file":
                 nombre = mensaje.get("filename", "archivo")
                 url = mensaje.get("url")
 
                 if not url:
-                    self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} (sin enlace)", remitente, False, mensaje.get("enviado_en"))
+                    self.mostrar_mensaje(
+                        f"{remitente} envió un archivo: {nombre} (sin enlace)",
+                        remitente,
+                        False,
+                        mensaje.get("enviado_en"),
+                    )
                     return
 
                 # Mostrar mensaje con enlace para descargar
-                self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎", remitente, False, mensaje.get("enviado_en"), url)
+                self.mostrar_mensaje(
+                    f"{remitente} envió un archivo: {nombre} 📎",
+                    remitente,
+                    False,
+                    mensaje.get("enviado_en"),
+                    url,
+                )
                 if self.on_file_event:
                     self.on_file_event(self.tunnel_id, nombre, url)
 

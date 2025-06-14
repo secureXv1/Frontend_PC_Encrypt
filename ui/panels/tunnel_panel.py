@@ -298,7 +298,11 @@ class TunnelPanel(QWidget):
 
     def recibir_mensaje(self, mensaje):
         try:
-            data = json.loads(mensaje)
+            try:
+                data = json.loads(mensaje)
+            except json.JSONDecodeError:
+                import ast
+                data = ast.literal_eval(mensaje)
             tunel_id = data.get("tunnel_id")
 
             if tunel_id not in self.conexiones_tuneles:
