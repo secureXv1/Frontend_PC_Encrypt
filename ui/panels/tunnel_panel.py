@@ -462,8 +462,8 @@ class TunnelPanel(QWidget):
 
         cliente = self.conexiones_tuneles[tunel_id]["cliente"]
         try:
-            cliente.socket.sendall(mensaje.encode())
-            chat_area.append(f"{mensaje}")
+            cliente.socket.sendall((mensaje + "\n").encode())
+            chat_area.append(mensaje)
             input_field.clear()
         except Exception as e:
             chat_area.append(f"⚠️ Error al enviar mensaje: {e}")

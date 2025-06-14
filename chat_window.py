@@ -48,17 +48,9 @@ class ChatWindow(QWidget):
     def enviar_mensaje(self):
         texto = self.input_field.text().strip()
         if texto:
-            mensaje = {
-                "type": "text",
-                "from": self.alias,
-                "uuid": get_client_uuid(),
-                "tunnel_id": self.tunnel_id,
-                "text": texto,
-                "enviado_en": int(time.time() * 1000)
-            }
             try:
-                self.client.send(json.dumps(mensaje) + "\n")
-                self.mostrar_mensaje(f"{texto}")
+                self.client.send(texto + "\n")
+                self.mostrar_mensaje(texto)
                 self.input_field.clear()
             except Exception as e:
                 self.mostrar_mensaje(f"⚠️ Error al enviar el mensaje: {e}")
