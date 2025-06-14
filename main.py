@@ -164,12 +164,16 @@ class TunnelPanel(QtWidgets.QWidget):
         mensaje = self.chat_input.text().strip()
         if mensaje and self.cliente:
             try:
-                texto = f"{self.input_alias.text()}: {mensaje}"
-                self.cliente.socket.sendall(texto.encode())
+                payload = {
+                    "type": "text",
+                    "from": self.input_alias.text(),
+                    "text": mensaje,
+                }
+                self.cliente.send(json.dumps(payload) + "\n")
                 self.chat_area.append(f"🧑 Tú: {mensaje}")
                 self.chat_input.clear()
-            except:
-                self.chat_area.append("⚠️ Error al enviar el mensaje")
+            except Exception as e:
+                self.chat_area.append(f"⚠️ Error al enviar el mensaje: {e}")
 
     def recibir_mensaje(self, mensaje):
         try:
