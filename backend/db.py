@@ -1,5 +1,5 @@
-import mysql.connector
 import json
+import mysql.connector
 import time
 
 
@@ -12,27 +12,47 @@ def get_connection():
     )
 
 
-def registrar_mensaje(tunnel_id, client_uuid, alias, contenido, tipo="texto"):
-    """Inserta un mensaje normalizando el campo de contenido.
+def _extraer_texto(payload):
+    """Devuelve el texto plano de un mensaje JSON o valor bruto.
 
-    Si `tipo` corresponde a un mensaje de texto y el contenido parece un JSON
-    serializado, se extrae el valor de la clave ``text`` para evitar almacenar
-    todo el objeto.
+    La función acepta diccionarios o cadenas JSON y devuelve el valor de la
+    clave ``text`` o ``contenido`` si están presentes. Si `payload` no es un
+    JSON válido se devuelve sin modificar convertido a ``str``.
+    """
+    if isinstance(payload, dict):
+        if "text" in payload:
+            return payload["text"]
+        if "contenido" in payload:
+            return payload["contenido"]
+        return str(payload)
+
+    if isinstance(payload, bytes):
+        try:
+            payload = payload.decode("utf-8")
+        except Exception:
+            return str(payload)
+
+    if isinstance(payload, str):
+        stripped = payload.strip()
+        if stripped.startswith("{") and stripped.endswith("}"):
+            try:
+                return _extraer_texto(json.loads(stripped))
+            except Exception:
+                pass
+        return stripped
+
+    return str(payload)
+
+
+def registrar_mensaje(tunnel_id, client_uuid, alias, contenido, tipo="texto"):
+    """Inserta un mensaje normalizando el campo ``contenido``.
+
+    Cuando ``tipo`` corresponde a un mensaje de texto, intenta extraer la parte
+    textual ignorando otros campos para evitar almacenar objetos JSON
+    completos.
     """
     if tipo in ("texto", "text"):
-        if isinstance(contenido, dict):
-            contenido = contenido.get("text", str(contenido))
-        elif isinstance(contenido, bytes):
-            contenido = contenido.decode("utf-8", errors="ignore")
-        elif isinstance(contenido, str):
-            stripped = contenido.strip()
-            if stripped.startswith("{") and stripped.endswith("}"):
-                try:
-                    data = json.loads(stripped)
-                    if isinstance(data, dict) and "text" in data:
-                        contenido = data["text"]
-                except Exception:
-                    pass
+        contenido = _extraer_texto(contenido)
 
     conn = get_connection()
     cursor = conn.cursor()

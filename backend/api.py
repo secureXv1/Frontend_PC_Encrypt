@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-from .db import registrar_mensaje
+from .db import registrar_mensaje, _extraer_texto
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
@@ -15,9 +15,10 @@ def guardar_mensaje():
     tipo = data.get("tipo", "texto")
     contenido = data.get("contenido")
 
-    # Para mensajes de texto aceptamos tanto un string como un dict con clave text
-    if tipo == "texto" and isinstance(contenido, dict):
-        contenido = contenido.get("text", "")
+    if tipo in ("texto", "text"):
+        if contenido is None:
+            contenido = data.get("text")
+        contenido = _extraer_texto(contenido)
 
     registrar_mensaje(
         data.get("tunnel_id"),
