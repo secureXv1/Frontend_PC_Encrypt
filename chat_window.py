@@ -65,8 +65,8 @@ class ChatWindow(QWidget):
         self.setLayout(layout)
 
 
-    def mostrar_mensaje(self, texto, sender, is_sender=False, timestamp=None):
-        bubble = MessageBubble(texto, sender, is_sender, timestamp)
+    def mostrar_mensaje(self, texto, sender, is_sender=False, timestamp=None, url=None):
+        bubble = MessageBubble(texto, sender, is_sender, timestamp, url, self.download_file)
         self.bubble_layout.addWidget(bubble)
         self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
 
@@ -130,7 +130,7 @@ class ChatWindow(QWidget):
                 "enviado_en": int(time.time() * 1000)
             }
             self.client.send(json.dumps(mensaje) + "\n")
-            self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000))
+            self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000), url)
 
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al adjuntar archivo: {e}")
@@ -154,41 +154,43 @@ class ChatWindow(QWidget):
                     self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} (sin enlace)", remitente, False, mensaje.get("enviado_en"))
                     return
 
-                # Mostrar mensaje clickable
-                self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎", remitente, False, mensaje.get("enviado_en"))
-
-                # Intentar descargar al instante
-                respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
-                if respuesta.status_code != 200:
-                    self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
-                    return
-
-                # Preguntar dónde guardar el archivo
-                ruta_guardado, _ = QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
-                if ruta_guardado:
-                    from PyQt5.QtWidgets import QProgressDialog
-
-                    total_size = int(respuesta.headers.get('content-length', 0))
-                    progress = QProgressDialog("Descargando archivo...", "Cancelar", 0, total_size, self)
-                    progress.setWindowTitle("Progreso de descarga")
-                    progress.setWindowModality(True)
-                    progress.setMinimumDuration(0)
-                    progress.setValue(0)
-
-                    with open(ruta_guardado, "wb") as f:
-                        downloaded = 0
-                        for chunk in respuesta.iter_content(chunk_size=8192):
-                            if progress.wasCanceled():
-                                self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.")
-                                return
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            progress.setValue(downloaded)
-
-                    progress.close()
-                    self.mostrar_mensaje(f"✅ Archivo guardado como: {ruta_guardado}", "Sistema", True)
+                # Mostrar mensaje con enlace para descargar
+                self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎", remitente, False, mensaje.get("enviado_en"), url)
 
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al procesar mensaje: {e}", "Sistema", True)
+
+    def download_file(self, url, nombre):
+        try:
+            respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
+            if respuesta.status_code != 200:
+                self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
+                return
+
+            ruta_guardado, _ = QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
+            if ruta_guardado:
+                from PyQt5.QtWidgets import QProgressDialog
+
+                total_size = int(respuesta.headers.get('content-length', 0))
+                progress = QProgressDialog("Descargando archivo...", "Cancelar", 0, total_size, self)
+                progress.setWindowTitle("Progreso de descarga")
+                progress.setWindowModality(True)
+                progress.setMinimumDuration(0)
+                progress.setValue(0)
+
+                with open(ruta_guardado, "wb") as f:
+                    downloaded = 0
+                    for chunk in respuesta.iter_content(chunk_size=8192):
+                        if progress.wasCanceled():
+                            self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.")
+                            return
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        progress.setValue(downloaded)
+
+                progress.close()
+                self.mostrar_mensaje(f"✅ Archivo guardado como: {ruta_guardado}", "Sistema", True)
+        except Exception as e:
+            self.mostrar_mensaje(f"⚠️ Error al descargar archivo: {e}", "Sistema", True)
 
 
