@@ -78,14 +78,17 @@ class ChatWindow(QWidget):
             mensaje = {
                 "type": "text",
                 "from": self.alias,
+                "alias": self.alias,
                 "uuid": get_client_uuid(),
                 "tunnel_id": self.tunnel_id,
                 "text": texto,
-                "enviado_en": int(time.time() * 1000)
+                "contenido": texto,
+                "enviado_en": int(time.time() * 1000),
+                "tipo": "texto"
             }
             try:
-                # Solo envías por socket, y TunnelClient se encarga de registrar
-                self.client.send(json.dumps(mensaje) + "\n")
+                # Envío directo del objeto; TunnelClient gestionará el formateo
+                self.client.send(mensaje)
                 self.mostrar_mensaje(texto, self.alias, True, int(time.time() * 1000))
                 self.input_field.clear()
 
@@ -124,13 +127,14 @@ class ChatWindow(QWidget):
             mensaje = {
                 "type": "file",
                 "from": self.alias,
+                "alias": self.alias,
                 "uuid": get_client_uuid(),
                 "tunnel_id": self.tunnel_id,
                 "filename": filename,
                 "url": url,
                 "enviado_en": int(time.time() * 1000)
             }
-            self.client.send(json.dumps(mensaje) + "\n")
+            self.client.send(mensaje)
             self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000))
 
         except Exception as e:
@@ -140,11 +144,11 @@ class ChatWindow(QWidget):
     def procesar_mensaje(self, mensaje_json):
         try:
             mensaje = json.loads(mensaje_json)
-            tipo = mensaje.get("type", "text")
-            remitente = mensaje.get("from", "Desconocido")
+            tipo = mensaje.get("type", mensaje.get("tipo", "text"))
+            remitente = mensaje.get("from", mensaje.get("alias", "Desconocido"))
 
-            if tipo == "text":
-                texto = mensaje.get("text", "")
+            if tipo == "text" or tipo == "texto":
+                texto = mensaje.get("text") or mensaje.get("contenido", "")
                 self.mostrar_mensaje(f"{remitente}: {texto}")
 
             elif tipo == "file":
