@@ -115,7 +115,7 @@ class ChatWindow(QWidget):
                 response = requests.post(f"{BASE_SERVER}/api/upload-file", files=files, data=data)
 
             if response.status_code != 200:
-                self.mostrar_mensaje("⚠️ Error al subir el archivo al servidor")
+                self.mostrar_mensaje("⚠️ Error al subir el archivo al servidor", "Sistema", True)
                 return
 
             resp_json = response.json()
@@ -139,7 +139,7 @@ class ChatWindow(QWidget):
             self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000))
 
         except Exception as e:
-            self.mostrar_mensaje(f"⚠️ Error al adjuntar archivo: {e}")
+            self.mostrar_mensaje(f"⚠️ Error al adjuntar archivo: {e}", "Sistema", True)
 
 
     def procesar_mensaje(self, mensaje_json):
@@ -150,7 +150,7 @@ class ChatWindow(QWidget):
 
             if tipo == "text" or tipo == "texto":
                 texto = mensaje.get("text") or mensaje.get("contenido", "")
-                self.mostrar_mensaje(f"{remitente}: {texto}")
+                self.mostrar_mensaje(texto, remitente, False, mensaje.get("enviado_en"))
 
             elif tipo == "file":
                 nombre = mensaje.get("filename", "archivo")
@@ -170,7 +170,7 @@ class ChatWindow(QWidget):
                     full_url = f"{BASE_SERVER}{url}"
                 respuesta = requests.get(full_url, stream=True)
                 if respuesta.status_code != 200:
-                    self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
+                    self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.", "Sistema", True)
                     return
 
                 # Preguntar dónde guardar el archivo
@@ -189,7 +189,7 @@ class ChatWindow(QWidget):
                         downloaded = 0
                         for chunk in respuesta.iter_content(chunk_size=8192):
                             if progress.wasCanceled():
-                                self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.")
+                                self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.", "Sistema", True)
                                 return
                             f.write(chunk)
                             downloaded += len(chunk)
