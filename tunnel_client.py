@@ -71,12 +71,10 @@ class TunnelClient:
                 msg_dict = message
                 message = json.dumps(message)
 
-            # Asegurar que el texto quede disponible en el campo 'contenido' para
-            # que el servidor lo almacene correctamente
+            # Para mensajes de texto enviamos exactamente lo que se recibe,
+            # sin campos adicionales, pues el servidor espera un formato
+            # sencillo y almacena solo el contenido del campo "text".
             if msg_dict.get("type") == "text" and "text" in msg_dict:
-                msg_dict.setdefault("contenido", msg_dict["text"])
-                msg_dict.setdefault("tipo", "texto")
-                msg_dict.setdefault("alias", msg_dict.get("from", self.alias))
                 message = json.dumps(msg_dict)
 
             # Enviar por socket

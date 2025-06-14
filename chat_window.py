@@ -78,13 +78,10 @@ class ChatWindow(QWidget):
             mensaje = {
                 "type": "text",
                 "from": self.alias,
-                "alias": self.alias,
                 "uuid": get_client_uuid(),
                 "tunnel_id": self.tunnel_id,
                 "text": texto,
-                "contenido": texto,
-                "enviado_en": int(time.time() * 1000),
-                "tipo": "texto"
+                "enviado_en": int(time.time() * 1000)
             }
             try:
                 # Envío directo del objeto; TunnelClient gestionará el formateo
