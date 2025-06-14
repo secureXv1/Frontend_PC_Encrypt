@@ -84,8 +84,8 @@ class ChatWindow(QWidget):
                 "enviado_en": int(time.time() * 1000)
             }
             try:
-                # Solo envías por socket, y TunnelClient se encarga de registrar
-                self.client.send(json.dumps(mensaje) + "\n")
+                # Enviar por el cliente sin agregar nueva línea extra
+                self.client.send(mensaje)
                 self.mostrar_mensaje(texto, self.alias, True, int(time.time() * 1000))
                 self.input_field.clear()
 
@@ -130,7 +130,7 @@ class ChatWindow(QWidget):
                 "url": url,
                 "enviado_en": int(time.time() * 1000)
             }
-            self.client.send(json.dumps(mensaje) + "\n")
+            self.client.send(mensaje)
             self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000), url)
             if self.on_file_event:
                 self.on_file_event(self.tunnel_id, filename, url)
