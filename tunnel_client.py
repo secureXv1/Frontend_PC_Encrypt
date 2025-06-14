@@ -63,7 +63,35 @@ class TunnelClient:
             self.running = False
 
     def send(self, message):
-        self.socket.sendall(message.encode())
+        try:
+            # Si es string JSON, lo convertimos a dict para inspeccionarlo
+            if isinstance(message, str):
+                msg_dict = json.loads(message)
+            else:
+                msg_dict = message
+                message = json.dumps(message)
+
+            # Enviar por socket
+            self.socket.sendall((message + "\n").encode())
+
+            # Solo registrar si es texto
+            if msg_dict.get("type") == "text" and "text" in msg_dict:
+                mensaje_texto = {
+                    "tipo": "texto",
+                    "contenido": msg_dict["text"],  # Solo el contenido textual
+                    "tunnel_id": msg_dict["tunnel_id"],
+                    "uuid": msg_dict["uuid"],
+                    "alias": msg_dict["from"]
+                }
+                try:
+                    import requests
+                    requests.post("http://symbolsaps.ddns.net:8000/api/messages/save", json=mensaje_texto)
+                except Exception as e:
+                    print("⚠️ Error registrando mensaje:", e)
+
+        except Exception as e:
+            print("❌ Error al enviar mensaje:", e)
+
 
     def disconnect(self):
         self.running = False

@@ -6,6 +6,8 @@ import base64, json
 from tunnel_client import TunnelClient
 from db_cliente import obtener_tunel_por_nombre
 from password_utils import verificar_password
+from chat_window import ChatWindow
+
 
 class TunnelCard(QFrame):
     def __init__(self, nombre, on_click):
@@ -263,31 +265,18 @@ class TunnelPanel(QWidget):
             header_layout.addStretch()
             header_layout.addWidget(btn_close)
 
-            chat_area = QTextEdit()
-            chat_area.setReadOnly(True)
-            chat_area.append(f"✅ Conectado a '{nombre}' como {alias}")
-
-            chat_input = QLineEdit()
-            chat_input.setPlaceholderText("Escribe un mensaje...")
-            btn_send = QPushButton("Enviar")
-            btn_send.clicked.connect(lambda: self.enviar_mensaje_tunel(
-                tunel['id'], chat_input.text(), chat_area, chat_input
-            ))
-
-            input_layout = QHBoxLayout()
-            input_layout.addWidget(chat_input)
-            input_layout.addWidget(btn_send)
+            from chat_window import ChatWindow
+            chat_window = ChatWindow(alias=alias, client=self.cliente, tunnel_id=tunel["id"], uuid=uuid)
 
             layout.addLayout(header_layout)
-            layout.addWidget(chat_area)
-            layout.addLayout(input_layout)
+            layout.addWidget(chat_window)
 
             self.tab_widget.addTab(tab, nombre)
             self.tab_widget.setCurrentWidget(tab)
 
             self.conexiones_tuneles[tunel["id"]] = {
                 "cliente": self.cliente,
-                "chat_area": chat_area
+                "chat": chat_window 
             }
 
         except Exception as e:
@@ -296,34 +285,18 @@ class TunnelPanel(QWidget):
     def recibir_mensaje(self, mensaje):
         try:
             data = json.loads(mensaje)
-            tipo = data.get("type", "text")
-            remitente = data.get("from", "Desconocido")
-            tunel_id = data.get("tunnel_id")  # ← este campo debe venir en el mensaje
+            tunel_id = data.get("tunnel_id")
 
             if tunel_id not in self.conexiones_tuneles:
                 print("⚠️ Mensaje recibido de túnel desconocido")
                 return
 
-            chat_area = self.conexiones_tuneles[tunel_id]["chat_area"]
-
-            if tipo == "text":
-                chat_area.append(f"{remitente}: {data.get('text', '')}")
-
-            elif tipo == "file":
-                nombre = data.get("filename", "archivo")
-                b64_data = data.get("data", "")
-                chat_area.append(f"{remitente} envió un archivo: {nombre} 📎")
-
-                def guardar():
-                    ruta, _ = QFileDialog.getSaveFileName(self, "Guardar archivo", nombre)
-                    if ruta:
-                        with open(ruta, "wb") as f:
-                            f.write(base64.b64decode(b64_data))
-                        chat_area.append(f"✅ Guardado en: {ruta}")
-                QTimer.singleShot(0, guardar)
+            chat = self.conexiones_tuneles[tunel_id]["chat"]
+            chat.procesar_mensaje(mensaje)
 
         except Exception as e:
             print("⚠️ Error al procesar mensaje:", e)
+
     
     def mostrar_menu_tunel(self):
         from PyQt5.QtWidgets import QMenu, QAction
@@ -428,6 +401,35 @@ class TunnelPanel(QWidget):
 
 
             self.users_list.addItem(f"{alias} (tú)")
+
+            # Crear la pestaña visual del chat
+            tab = QWidget()
+            layout = QVBoxLayout(tab)
+
+            header_layout = QHBoxLayout()
+            label = QLabel(f"🟢 {nombre} como {alias}")
+            label.setStyleSheet("color: white; font-weight: bold;")
+            btn_close = QPushButton("Desconectar")
+            btn_close.setStyleSheet("background-color: red; color: white; padding: 2px;")
+            btn_close.clicked.connect(lambda: self.desconectar_tunel(tab, tunel['id']))
+            header_layout.addWidget(label)
+            header_layout.addStretch()
+            header_layout.addWidget(btn_close)
+
+            from chat_window import ChatWindow
+            chat_window = ChatWindow(alias=alias, client=self.cliente, tunnel_id=tunel["id"], uuid=uuid)
+
+            layout.addLayout(header_layout)
+            layout.addWidget(chat_window)
+
+            self.tab_widget.addTab(tab, nombre)
+            self.tab_widget.setCurrentWidget(tab)
+
+            self.conexiones_tuneles[tunel["id"]] = {
+                "cliente": self.cliente,
+                "chat_area": chat_window.chat_area  # Referencia al QTextEdit dentro de ChatWindow
+            }
+
             dialog.accept()
 
         except Exception as e:
