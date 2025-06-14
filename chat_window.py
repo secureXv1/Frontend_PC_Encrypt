@@ -81,7 +81,9 @@ class ChatWindow(QWidget):
                 "uuid": get_client_uuid(),
                 "tunnel_id": self.tunnel_id,
                 "text": texto,
-                "enviado_en": int(time.time() * 1000)
+                "enviado_en": int(time.time() * 1000),
+                "tipo": "texto",
+                "contenido": texto,
             }
             try:
                 # Enviar por el cliente sin agregar nueva línea extra
@@ -128,7 +130,9 @@ class ChatWindow(QWidget):
                 "tunnel_id": self.tunnel_id,
                 "filename": filename,
                 "url": url,
-                "enviado_en": int(time.time() * 1000)
+                "enviado_en": int(time.time() * 1000),
+                "tipo": "file",
+                "contenido": url,
             }
             self.client.send(mensaje)
             self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000), url)
@@ -147,7 +151,7 @@ class ChatWindow(QWidget):
                 import ast
                 mensaje = ast.literal_eval(mensaje_json)
 
-            tipo = mensaje.get("type", "text")
+            tipo = mensaje.get("type") or mensaje.get("tipo", "text")
             remitente = mensaje.get("from", "Desconocido")
 
             if tipo == "text":
