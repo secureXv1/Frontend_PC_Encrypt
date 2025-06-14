@@ -2,7 +2,12 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
-from .db import registrar_mensaje, registrar_archivo, _extraer_texto
+# Permite ejecutar el servidor tanto como módulo ("python -m backend.api")
+# como script simple ("python backend/api.py").
+try:  # pragma: no cover - compatibilidad en diferentes entornos
+    from .db import registrar_mensaje, registrar_archivo, _extraer_texto
+except ImportError:  # ejecutar como script directamente
+    from db import registrar_mensaje, registrar_archivo, _extraer_texto
 import json
 import os
 from time import time
@@ -64,18 +69,18 @@ def upload_file():
     if not archivo or not alias or not tunnel_id or not uuid:
         return jsonify({"error": "Faltan datos"}), 400
 
-    original = secure_filename(archivo.filename)
+    original = secure_filename(getattr(archivo, "filename", "upload"))
     prefijo = f"{int(time()*1000)}_{uuid4().hex[:8]}"
-    filename = f"{prefijo}_{original}"
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    saved_name = f"{prefijo}_{original}"
+    filepath = os.path.join(UPLOAD_FOLDER, saved_name)
     archivo.save(filepath)
 
     # URL completa para descargar el archivo
     base = request.host_url.rstrip('/')
-    url = f"{base}/uploads/{filename}"
+    url = f"{base}/uploads/{saved_name}"
 
-    registrar_archivo(filename, url, alias, tunnel_id, uuid)
-    return jsonify({"url": url, "filename": filename})
+    registrar_archivo(saved_name, url, alias, tunnel_id, uuid)
+    return jsonify({"url": url, "filename": saved_name})
 
 
 @app.route('/uploads/<path:filename>')
