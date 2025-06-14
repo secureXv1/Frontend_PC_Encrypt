@@ -66,8 +66,8 @@ class ChatWindow(QWidget):
         self.setLayout(layout)
 
 
-    def mostrar_mensaje(self, texto, sender, is_sender=False, timestamp=None, url=None):
-        bubble = MessageBubble(texto, sender, is_sender, timestamp, url, self.download_file)
+    def mostrar_mensaje(self, texto, sender, is_sender=False, timestamp=None, url=None, is_file=False):
+        bubble = MessageBubble(texto, sender, is_sender, timestamp, url, self.download_file, is_file)
         self.bubble_layout.addWidget(bubble)
         self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
 
@@ -135,7 +135,7 @@ class ChatWindow(QWidget):
                 "contenido": url,
             }
             self.client.send(mensaje)
-            self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000), url)
+            self.mostrar_mensaje(filename, self.alias, True, int(time.time() * 1000), url, True)
             if self.on_file_event:
                 self.on_file_event(self.tunnel_id, filename, url)
 
@@ -173,11 +173,12 @@ class ChatWindow(QWidget):
 
                 # Mostrar mensaje con enlace para descargar
                 self.mostrar_mensaje(
-                    f"{remitente} envió un archivo: {nombre} 📎",
+                    nombre,
                     remitente,
                     False,
                     mensaje.get("enviado_en"),
                     url,
+                    True,
                 )
                 if self.on_file_event:
                     self.on_file_event(self.tunnel_id, nombre, url)
