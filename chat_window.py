@@ -3,6 +3,8 @@ import base64
 import json
 import requests
 import time
+
+BASE_SERVER = "http://symbolsaps.ddns.net:8000"
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QFileDialog, QHBoxLayout, QScrollArea, QSpacerItem, QSizePolicy
 )
@@ -110,7 +112,7 @@ class ChatWindow(QWidget):
                     "tunnel_id": self.tunnel_id,
                     "uuid": get_client_uuid()
                 }
-                response = requests.post("http://symbolsaps.ddns.net:8000/api/upload-file", files=files, data=data)
+                response = requests.post(f"{BASE_SERVER}/api/upload-file", files=files, data=data)
 
             if response.status_code != 200:
                 self.mostrar_mensaje("⚠️ Error al subir el archivo al servidor")
@@ -162,7 +164,11 @@ class ChatWindow(QWidget):
                 self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎", remitente, False, mensaje.get("enviado_en"))
 
                 # Intentar descargar al instante
-                respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
+                if url.startswith("http"):
+                    full_url = url
+                else:
+                    full_url = f"{BASE_SERVER}{url}"
+                respuesta = requests.get(full_url, stream=True)
                 if respuesta.status_code != 200:
                     self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
                     return

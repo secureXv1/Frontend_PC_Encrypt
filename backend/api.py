@@ -1,11 +1,20 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 
-from .db import registrar_mensaje, _extraer_texto
+from .db import registrar_mensaje, registrar_archivo, _extraer_texto
 import json
+import os
+import time
+from uuid import uuid4
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
+
+# Carpeta para almacenar archivos subidos
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 @app.route('/api/messages/save', methods=['POST'])
@@ -42,6 +51,36 @@ def guardar_mensaje():
         tipo,
     )
     return jsonify({"status": "ok"})
+
+
+@app.route('/api/upload-file', methods=['POST'])
+def upload_file():
+    """Guarda un archivo y devuelve la URL completa del recurso."""
+    archivo = request.files.get("file")
+    alias = request.form.get("alias")
+    tunnel_id = request.form.get("tunnel_id")
+    uuid = request.form.get("uuid")
+
+    if not archivo or not alias or not tunnel_id or not uuid:
+        return jsonify({"error": "Faltan datos"}), 400
+
+    original = secure_filename(archivo.filename)
+    prefijo = f"{int(time.time()*1000)}_{uuid4().hex[:8]}"
+    filename = f"{prefijo}_{original}"
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    archivo.save(filepath)
+
+    # URL completa para descargar el archivo
+    base = request.host_url.rstrip('/')
+    url = f"{base}/uploads/{filename}"
+
+    registrar_archivo(filename, url, alias, tunnel_id, uuid)
+    return jsonify({"url": url, "filename": filename})
+
+
+@app.route('/uploads/<path:filename>')
+def descargar_archivo(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
 
 if __name__ == '__main__':
