@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 from .db import registrar_mensaje, registrar_archivo, _extraer_texto
 import json
 import os
-import time
+from time import time
 from uuid import uuid4
 
 app = Flask(__name__)
@@ -65,7 +65,7 @@ def upload_file():
         return jsonify({"error": "Faltan datos"}), 400
 
     original = secure_filename(archivo.filename)
-    prefijo = f"{int(time.time()*1000)}_{uuid4().hex[:8]}"
+    prefijo = f"{int(time()*1000)}_{uuid4().hex[:8]}"
     filename = f"{prefijo}_{original}"
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     archivo.save(filepath)
