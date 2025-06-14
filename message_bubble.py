@@ -23,7 +23,7 @@ class MessageBubble(QWidget):
         text_label.setWordWrap(True)
         text_label.setStyleSheet("""
             padding: 6px;
-            background-color: #DCF8C6;
+            background-color: #00BCD4;
             border-radius: 8px;
         """ if is_sender else """
             padding: 6px;

@@ -33,8 +33,7 @@ class ChatWindow(QWidget):
                 border: none;
             }
             QWidget {
-                background-image: url(assets/bg_dark_texture.png);
-                background-repeat: repeat;
+                background-color: #000;
             }
         """)
 
