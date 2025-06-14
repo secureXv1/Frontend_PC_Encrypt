@@ -164,6 +164,17 @@ def registrar_mensaje(tunnel_id, client_uuid, alias, contenido, tipo="texto"):
     """
     if tipo in ("texto", "text"):
         contenido = _extraer_texto(contenido)
+    elif tipo in ("file", "archivo"):
+        if isinstance(contenido, dict):
+            contenido = contenido.get("url") or contenido.get("filename")
+        elif isinstance(contenido, str):
+            stripped = contenido.strip()
+            if stripped.startswith("{") and stripped.endswith("}"):
+                try:
+                    tmp = json.loads(stripped)
+                    contenido = tmp.get("url") or tmp.get("filename") or contenido
+                except Exception:
+                    pass
 
     conn = get_connection()
     cursor = conn.cursor()

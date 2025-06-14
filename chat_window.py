@@ -123,12 +123,14 @@ class ChatWindow(QWidget):
             # Enviar por socket solo los metadatos, sin incluir el contenido del archivo
             mensaje = {
                 "type": "file",
+                "tipo": "file",
                 "from": self.alias,
                 "alias": self.alias,
                 "uuid": get_client_uuid(),
                 "tunnel_id": self.tunnel_id,
                 "filename": filename,
                 "url": url,
+                "contenido": url,
                 "enviado_en": int(time.time() * 1000)
             }
             self.client.send(mensaje)
