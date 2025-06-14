@@ -12,12 +12,13 @@ from message_bubble import MessageBubble
 
 
 class ChatWindow(QWidget):
-    def __init__(self, alias, client, tunnel_id, uuid):
+    def __init__(self, alias, client, tunnel_id, uuid, on_file_event=None):
         super().__init__()
         self.alias = alias
         self.client = client  # instancia de TunnelClient
         self.tunnel_id = tunnel_id
         self.uuid = uuid
+        self.on_file_event = on_file_event
 
         self.setWindowTitle(f"Túnel - {alias}")
         self.resize(500, 350)
@@ -131,6 +132,8 @@ class ChatWindow(QWidget):
             }
             self.client.send(json.dumps(mensaje) + "\n")
             self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000), url)
+            if self.on_file_event:
+                self.on_file_event(self.tunnel_id, filename, url)
 
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al adjuntar archivo: {e}")
@@ -156,6 +159,8 @@ class ChatWindow(QWidget):
 
                 # Mostrar mensaje con enlace para descargar
                 self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎", remitente, False, mensaje.get("enviado_en"), url)
+                if self.on_file_event:
+                    self.on_file_event(self.tunnel_id, nombre, url)
 
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al procesar mensaje: {e}", "Sistema", True)
