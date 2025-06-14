@@ -7,33 +7,33 @@ import json
 
 
 class TunnelClient:
-    def __init__(self, host, port, tunnel_id, alias, on_receive_callback):
+    def __init__(self, host, port, tunnel_id, alias, uuid, on_receive_callback):
         self.host = host
         self.port = port
         self.tunnel_id = tunnel_id
         self.alias = alias
-        self.on_receive_callback = on_receive_callback  # ← puede ser ChatWindow.procesar_mensaje
+        self.uuid = uuid  # ✅ ahora se define desde el inicio
+        self.on_receive_callback = on_receive_callback
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.running = False
+        self.running = False  
 
     def connect(self):
         self.socket.connect((self.host, self.port))
-        
-        from main import obtener_info_equipo
+
+        from main_refactor import obtener_info_equipo
         info = obtener_info_equipo()
-        self.uuid = info["uuid"]
 
         handshake = {
             "tunnel_id": self.tunnel_id,
             "alias": self.alias,
-            "uuid": info["uuid"],
+            "uuid": self.uuid,
             "hostname": info["hostname"],
             "sistema": info["sistema"]
         }
 
         try:
             requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json={
-                "uuid": info["uuid"],
+                "uuid": self.uuid,
                 "tunnel_id": self.tunnel_id,
                 "alias": self.alias
             })
@@ -63,7 +63,35 @@ class TunnelClient:
             self.running = False
 
     def send(self, message):
-        self.socket.sendall(message.encode())
+        try:
+            # Si es string JSON, lo convertimos a dict para inspeccionarlo
+            if isinstance(message, str):
+                msg_dict = json.loads(message)
+            else:
+                msg_dict = message
+                message = json.dumps(message)
+
+            # Enviar por socket
+            self.socket.sendall((message + "\n").encode())
+
+            # Solo registrar si es texto
+            if msg_dict.get("type") == "text" and "text" in msg_dict:
+                mensaje_texto = {
+                    "tipo": "texto",
+                    "contenido": msg_dict["text"],  # Solo el contenido textual
+                    "tunnel_id": msg_dict["tunnel_id"],
+                    "uuid": msg_dict["uuid"],
+                    "alias": msg_dict["from"]
+                }
+                try:
+                    import requests
+                    requests.post("http://symbolsaps.ddns.net:8000/api/messages/save", json=mensaje_texto)
+                except Exception as e:
+                    print("⚠️ Error registrando mensaje:", e)
+
+        except Exception as e:
+            print("❌ Error al enviar mensaje:", e)
+
 
     def disconnect(self):
         self.running = False

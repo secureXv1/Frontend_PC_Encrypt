@@ -2,10 +2,13 @@ import os
 import base64
 import json
 import requests
+import time
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QFileDialog, QHBoxLayout
+    QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QFileDialog, QHBoxLayout, QScrollArea, QSpacerItem, QSizePolicy
 )
+from PyQt5.QtCore import Qt
 from db_cliente import get_client_uuid
+from message_bubble import MessageBubble
 
 
 class ChatWindow(QWidget):
@@ -19,30 +22,55 @@ class ChatWindow(QWidget):
         self.setWindowTitle(f"Túnel - {alias}")
         self.resize(500, 350)
 
-        # Layout principal
         layout = QVBoxLayout()
-        self.chat_area = QTextEdit()
-        self.chat_area.setReadOnly(True)
 
+        # ÁREA DE MENSAJES (reemplazo moderno)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                background-color: #1E1E1E;
+                border: none;
+            }
+            QWidget {
+                background-image: url(assets/bg_dark_texture.png);
+                background-repeat: repeat;
+            }
+        """)
+
+        self.bubble_container = QWidget()
+        self.bubble_layout = QVBoxLayout(self.bubble_container)
+        self.bubble_layout.setAlignment(Qt.AlignTop)
+        self.scroll_area.setWidget(self.bubble_container)
+
+        layout.addWidget(self.scroll_area)
+
+        # INPUT Y BOTONES
         self.input_field = QLineEdit()
         self.input_field.setPlaceholderText("Escribe un mensaje...")
         self.input_field.returnPressed.connect(self.enviar_mensaje)
 
-        # Botón de adjuntar archivo
         self.attach_button = QPushButton("📎")
         self.attach_button.clicked.connect(self.enviar_archivo)
+        self.attach_button.setMinimumWidth(30)
 
-        # Barra inferior con input y botón
+        self.send_button = QPushButton("Enviar")
+        self.send_button.clicked.connect(self.enviar_mensaje)
+
         input_layout = QHBoxLayout()
-        input_layout.addWidget(self.input_field)
-        input_layout.addWidget(self.attach_button)
+        input_layout.addWidget(self.attach_button, 0)
+        input_layout.addWidget(self.input_field, 1)
+        input_layout.addWidget(self.send_button, 0)
 
-        layout.addWidget(self.chat_area)
         layout.addLayout(input_layout)
         self.setLayout(layout)
 
-    def mostrar_mensaje(self, texto):
-        self.chat_area.append(texto)
+
+    def mostrar_mensaje(self, texto, sender, is_sender=False, timestamp=None):
+        bubble = MessageBubble(texto, sender, is_sender, timestamp)
+        self.bubble_layout.addWidget(bubble)
+        self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
+
 
     def enviar_mensaje(self):
         texto = self.input_field.text().strip()
@@ -50,14 +78,20 @@ class ChatWindow(QWidget):
             mensaje = {
                 "type": "text",
                 "from": self.alias,
-                "text": texto
+                "uuid": get_client_uuid(),
+                "tunnel_id": self.tunnel_id,
+                "text": texto,
+                "enviado_en": int(time.time() * 1000)
             }
             try:
+                # Solo envías por socket, y TunnelClient se encarga de registrar
                 self.client.send(json.dumps(mensaje) + "\n")
-                self.mostrar_mensaje(f"🧑 Tú: {texto}")
+                self.mostrar_mensaje(texto, self.alias, True, int(time.time() * 1000))
                 self.input_field.clear()
+
             except Exception as e:
-                self.mostrar_mensaje(f"⚠️ Error al enviar el mensaje: {e}")
+                self.mostrar_mensaje(f"⚠️ Error al enviar el mensaje: {e}", "Sistema", True)
+
 
     def enviar_archivo(self):
         ruta_archivo, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo", "", "Todos los archivos (*)")
@@ -65,7 +99,6 @@ class ChatWindow(QWidget):
             return
 
         try:
-            
             from os.path import basename
             from db_cliente import get_client_uuid
 
@@ -87,18 +120,22 @@ class ChatWindow(QWidget):
             url = resp_json.get("url")
             filename = resp_json.get("filename")
 
-            # Enviar por socket solo los metadatos, sin incluir el contenido
+            # Enviar por socket solo los metadatos, sin incluir el contenido del archivo
             mensaje = {
                 "type": "file",
                 "from": self.alias,
+                "uuid": get_client_uuid(),
+                "tunnel_id": self.tunnel_id,
                 "filename": filename,
-                "url": url
+                "url": url,
+                "enviado_en": int(time.time() * 1000)
             }
             self.client.send(json.dumps(mensaje) + "\n")
-            self.mostrar_mensaje(f"🧑 Tú enviaste un archivo: {filename} 📎")
+            self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000))
 
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al adjuntar archivo: {e}")
+
 
     def procesar_mensaje(self, mensaje_json):
         try:
@@ -115,12 +152,12 @@ class ChatWindow(QWidget):
                 url = mensaje.get("url")
 
                 if not url:
-                    self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} (sin enlace)")
+                    self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} (sin enlace)", remitente, False, mensaje.get("enviado_en"))
                     return
 
                 # Mostrar mensaje clickable
-                self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎")
-                
+                self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎", remitente, False, mensaje.get("enviado_en"))
+
                 # Intentar descargar al instante
                 respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
                 if respuesta.status_code != 200:
@@ -128,14 +165,31 @@ class ChatWindow(QWidget):
                     return
 
                 # Preguntar dónde guardar el archivo
-                from PyQt5.QtWidgets import QFileDialog
                 ruta_guardado, _ = QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
                 if ruta_guardado:
+                    from PyQt5.QtWidgets import QProgressDialog
+
+                    total_size = int(respuesta.headers.get('content-length', 0))
+                    progress = QProgressDialog("Descargando archivo...", "Cancelar", 0, total_size, self)
+                    progress.setWindowTitle("Progreso de descarga")
+                    progress.setWindowModality(True)
+                    progress.setMinimumDuration(0)
+                    progress.setValue(0)
+
                     with open(ruta_guardado, "wb") as f:
+                        downloaded = 0
                         for chunk in respuesta.iter_content(chunk_size=8192):
+                            if progress.wasCanceled():
+                                self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.")
+                                return
                             f.write(chunk)
-                    self.mostrar_mensaje(f"✅ Archivo guardado como: {ruta_guardado}")
+                            downloaded += len(chunk)
+                            progress.setValue(downloaded)
+
+                    progress.close()
+                    self.mostrar_mensaje(f"✅ Archivo guardado como: {ruta_guardado}", "Sistema", True)
 
         except Exception as e:
-            self.mostrar_mensaje(f"⚠️ Error al procesar mensaje: {e}")
+            self.mostrar_mensaje(f"⚠️ Error al procesar mensaje: {e}", "Sistema", True)
+
 
