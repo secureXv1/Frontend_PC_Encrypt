@@ -513,16 +513,39 @@ class TunnelPanel(QWidget):
             self.update_side_lists(tid)
 
     def fetch_participants(self, tunnel_id):
+        """Fill ``self.participants`` with a list of aliases for ``tunnel_id``."""
         import requests
+        current_alias = self.conexiones_tuneles.get(tunnel_id, {}).get("alias")
+        participantes = []
         try:
-            resp = requests.get(f"http://symbolsaps.ddns.net:8000/api/tunnels/{tunnel_id}/participants")
+            resp = requests.get(
+                f"http://symbolsaps.ddns.net:8000/api/tunnels/{tunnel_id}/participants"
+            )
             if resp.status_code == 200:
-                self.participants[tunnel_id] = resp.json()
-            else:
-                self.participants[tunnel_id] = []
+                data = resp.json()
+                if isinstance(data, dict):
+                    participantes = (
+                        data.get("participants")
+                        or data.get("data")
+                        or list(data)
+                    )
+                else:
+                    participantes = data
         except Exception as e:
             print("⚠️ Error obteniendo participantes:", e)
-            self.participants[tunnel_id] = []
+
+        if not isinstance(participantes, list):
+            participantes = [participantes]
+
+        # Añadir nuestro propio alias si no está presente
+        if current_alias and all(
+            (isinstance(p, dict) and p.get("alias") != current_alias)
+            or (not isinstance(p, dict) and p != current_alias)
+            for p in participantes
+        ):
+            participantes.append({"alias": current_alias})
+
+        self.participants[tunnel_id] = participantes
 
     def fetch_files(self, tunnel_id):
         import requests
