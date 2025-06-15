@@ -137,7 +137,8 @@ class TunnelPanel(QWidget):
 
         self.files_list = QListWidget()
         self.files_list.setFixedWidth(215)
-        self.files_list.itemDoubleClicked.connect(self._download_file_from_list)
+        # Descargar el archivo con un solo clic
+        self.files_list.itemClicked.connect(self._download_file_from_list)
         right_panel.addWidget(self.files_list)
 
         right_container = QWidget()

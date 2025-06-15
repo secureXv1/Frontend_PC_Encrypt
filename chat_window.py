@@ -187,7 +187,9 @@ class ChatWindow(QWidget):
 
     def download_file(self, url, nombre):
         try:
-            respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
+            if not url.startswith("http"):
+                url = f"http://symbolsaps.ddns.net:8000{url}"
+            respuesta = requests.get(url, stream=True)
             if respuesta.status_code != 200:
                 self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
                 return
