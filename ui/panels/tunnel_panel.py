@@ -1,25 +1,7 @@
-from PyQt5.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QTextEdit,
-    QHBoxLayout,
-    QFileDialog,
-    QMessageBox,
-    QScrollArea,
-    QFrame,
-    QSpacerItem,
-    QSizePolicy,
-    QDialog,
-    QFormLayout,
-    QListWidget,
-    QListWidgetItem,
-)
+from PyQt5.QtWidgets import ( QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit, QHBoxLayout,
+QFileDialog, QMessageBox, QScrollArea, QFrame, QSpacerItem, QSizePolicy, QDialog, QFormLayout, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QVariantAnimation, pyqtProperty
-from PyQt5.QtGui import QColor, QPalette, QIcon
-from ui.sidebar import colored_icon
+from PyQt5.QtGui import QColor, QPalette
 import base64, json
 from tunnel_client import TunnelClient
 from db_cliente import obtener_tunel_por_nombre
@@ -593,8 +575,7 @@ class TunnelPanel(QWidget):
         self.files_list.clear()
         for archivo in self.files.get(tunnel_id, []):
             nombre = archivo.get("filename") if isinstance(archivo, dict) else archivo
-            icon = colored_icon("assets/icons/file.svg", "#00BCD4", 16)
-            item = QListWidgetItem(icon, nombre)
+            item = QListWidgetItem(nombre)
             item.setData(Qt.UserRole, archivo)
             self.files_list.addItem(item)
 
@@ -602,8 +583,7 @@ class TunnelPanel(QWidget):
         entry = {"filename": nombre, "url": url}
         self.files.setdefault(tunnel_id, []).append(entry)
         if self.current_tunnel_id() == tunnel_id:
-            icon = colored_icon("assets/icons/file.svg", "#00BCD4", 16)
-            item = QListWidgetItem(icon, nombre)
+            item = QListWidgetItem(nombre)
             item.setData(Qt.UserRole, entry)
             self.files_list.addItem(item)
 
