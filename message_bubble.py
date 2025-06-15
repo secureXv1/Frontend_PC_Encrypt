@@ -43,7 +43,9 @@ class MessageBubble(QWidget):
             bubble_layout.setSpacing(6)
 
             icon_label = QLabel()
-            icon_label.setPixmap(colored_pixmap("assets/icons/file.svg", "#FFFFFF", 16))
+            icon_pix = colored_pixmap("assets/icons/file.svg", "#FFFFFF", 24)
+            icon_label.setPixmap(icon_pix)
+            icon_label.setFixedSize(24, 24)
             bubble_layout.addWidget(icon_label)
 
             text_label = QLabel()
