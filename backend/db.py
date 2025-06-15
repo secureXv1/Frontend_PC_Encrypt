@@ -135,6 +135,10 @@ def _extraer_texto(payload):
             return payload["text"]
         if "contenido" in payload:
             return payload["contenido"]
+        # Si contiene URL o nombre de archivo, devolver esos valores en lugar
+        # de la representación completa del objeto
+        if "url" in payload or "filename" in payload:
+            return payload.get("url") or payload.get("filename")
         return str(payload)
 
     if isinstance(payload, bytes):
