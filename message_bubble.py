@@ -43,17 +43,17 @@ class MessageBubble(QWidget):
             bubble_layout.setSpacing(6)
 
             icon_label = QLabel()
-            icon_pix = colored_pixmap("assets/icons/file.svg", "#FFFFFF", 24)
+            icon_pix = QPixmap("assets/icons/file.svg").scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             icon_label.setPixmap(icon_pix)
-            icon_label.setFixedSize(24, 24)
+            icon_label.setFixedSize(48, 48)
             bubble_layout.addWidget(icon_label)
 
             text_label = QLabel()
-            text_label.setText(f'<a href="{url}">{text}</a>')
+            text_label.setText(f'<a href="{url}" style="color:white; text-decoration:none;">{text}</a>')
             text_label.setTextFormat(Qt.RichText)
             text_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
             text_label.setOpenExternalLinks(False)
-            text_label.setStyleSheet("color: #FFF;")
+            text_label.setStyleSheet("color: white; font-weight: bold; font-size: 13px;")
             text_label.setWordWrap(True)
             if link_handler:
                 text_label.linkActivated.connect(lambda _: link_handler(url, text))

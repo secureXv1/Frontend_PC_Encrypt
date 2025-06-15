@@ -594,7 +594,8 @@ class TunnelPanel(QWidget):
         for archivo in self.files.get(tunnel_id, []):
             nombre = archivo.get("filename") if isinstance(archivo, dict) else archivo
             item = QListWidgetItem(nombre)
-            item.setIcon(colored_icon("assets/icons/file.svg", "#FFFFFF"))
+            icon_pixmap = QPixmap("assets/icons/file.svg").scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            item.setIcon(QIcon(icon_pixmap))
             item.setData(Qt.UserRole, archivo)
             self.files_list.addItem(item)
 
@@ -603,7 +604,8 @@ class TunnelPanel(QWidget):
         self.files.setdefault(tunnel_id, []).append(entry)
         if self.current_tunnel_id() == tunnel_id:
             item = QListWidgetItem(nombre)
-            item.setIcon(colored_icon("assets/icons/file.svg", "#FFFFFF"))
+            icon_pixmap = QPixmap("assets/icons/file.svg").scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            item.setIcon(QIcon(icon_pixmap))
             item.setData(Qt.UserRole, entry)
             self.files_list.addItem(item)
 
