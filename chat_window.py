@@ -184,6 +184,9 @@ class ChatWindow(QWidget):
                     self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
                     return
 
+        except Exception as e:
+            self.mostrar_mensaje(f"⚠️ Error al procesar mensaje: {e}", "Sistema", True)
+
     def download_file(self, url, nombre):
         try:
             respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
@@ -195,15 +198,9 @@ class ChatWindow(QWidget):
             if ruta_guardado:
                 from PyQt5.QtWidgets import QProgressDialog
 
-                    with open(ruta_guardado, "wb") as f:
-                        downloaded = 0
-                        for chunk in respuesta.iter_content(chunk_size=8192):
-                            if progress.wasCanceled():
-                                self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.")
-                                return
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            progress.setValue(downloaded)
+                progress = QProgressDialog("Descargando archivo...", "Cancelar", 0, 0, self)
+                progress.setWindowModality(Qt.WindowModal)
+                progress.show()
 
                 with open(ruta_guardado, "wb") as f:
                     downloaded = 0
