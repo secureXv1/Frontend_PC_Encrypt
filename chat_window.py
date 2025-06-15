@@ -135,7 +135,7 @@ class ChatWindow(QWidget):
                 "contenido": url,
             }
             self.client.send(mensaje)
-            self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000), url)
+            self.mostrar_mensaje(filename, self.alias, True, int(time.time() * 1000), url)
             if self.on_file_event:
                 self.on_file_event(self.tunnel_id, filename, url)
 
@@ -173,7 +173,7 @@ class ChatWindow(QWidget):
 
                 # Mostrar mensaje con enlace para descargar
                 self.mostrar_mensaje(
-                    f"{remitente} envió un archivo: {nombre} 📎",
+                    f"{remitente} envió un archivo: {nombre}",
                     remitente,
                     False,
                     mensaje.get("enviado_en"),
