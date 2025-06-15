@@ -1,12 +1,28 @@
 from PyQt5.QtWidgets import ( QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit, QHBoxLayout,
 QFileDialog, QMessageBox, QScrollArea, QFrame, QSpacerItem, QSizePolicy, QDialog, QFormLayout, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QVariantAnimation, pyqtProperty
-from PyQt5.QtGui import QColor, QPalette
+from PyQt5.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter
+from PyQt5.QtSvg import QSvgRenderer
 import base64, json
 from tunnel_client import TunnelClient
 from db_cliente import obtener_tunel_por_nombre
 from password_utils import verificar_password
 from chat_window import ChatWindow
+
+
+def colored_icon(svg_path, color, size=20):
+    renderer = QSvgRenderer(svg_path)
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    renderer.render(painter)
+    painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    painter.fillRect(pixmap.rect(), QColor(color))
+    painter.end()
+
+    return QIcon(pixmap)
 
 
 class TunnelCard(QFrame):
@@ -137,6 +153,7 @@ class TunnelPanel(QWidget):
 
         self.files_list = QListWidget()
         self.files_list.setFixedWidth(215)
+        self.files_list.setStyleSheet("background-color: #000; color: white;")
         # Descargar el archivo con un solo clic
         self.files_list.itemClicked.connect(self._download_file_from_list)
         right_panel.addWidget(self.files_list)
@@ -577,6 +594,8 @@ class TunnelPanel(QWidget):
         for archivo in self.files.get(tunnel_id, []):
             nombre = archivo.get("filename") if isinstance(archivo, dict) else archivo
             item = QListWidgetItem(nombre)
+            icon_pixmap = QPixmap("assets/icons/file.svg").scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            item.setIcon(QIcon(icon_pixmap))
             item.setData(Qt.UserRole, archivo)
             self.files_list.addItem(item)
 
@@ -585,6 +604,8 @@ class TunnelPanel(QWidget):
         self.files.setdefault(tunnel_id, []).append(entry)
         if self.current_tunnel_id() == tunnel_id:
             item = QListWidgetItem(nombre)
+            icon_pixmap = QPixmap("assets/icons/file.svg").scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            item.setIcon(QIcon(icon_pixmap))
             item.setData(Qt.UserRole, entry)
             self.files_list.addItem(item)
 
