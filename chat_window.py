@@ -14,12 +14,13 @@ from message_bubble import MessageBubble
 
 
 class ChatWindow(QWidget):
-    def __init__(self, alias, client, tunnel_id, uuid):
+    def __init__(self, alias, client, tunnel_id, uuid, on_file_event=None):
         super().__init__()
         self.alias = alias
         self.client = client  # instancia de TunnelClient
         self.tunnel_id = tunnel_id
         self.uuid = uuid
+        self.on_file_event = on_file_event
 
         self.setWindowTitle(f"Túnel - {alias}")
         self.resize(500, 350)
@@ -35,8 +36,7 @@ class ChatWindow(QWidget):
                 border: none;
             }
             QWidget {
-                background-image: url(assets/bg_dark_texture.png);
-                background-repeat: repeat;
+                background-color: #000;
             }
         """)
 
@@ -68,8 +68,8 @@ class ChatWindow(QWidget):
         self.setLayout(layout)
 
 
-    def mostrar_mensaje(self, texto, sender, is_sender=False, timestamp=None):
-        bubble = MessageBubble(texto, sender, is_sender, timestamp)
+    def mostrar_mensaje(self, texto, sender, is_sender=False, timestamp=None, url=None, is_file=False):
+        bubble = MessageBubble(texto, sender, is_sender, timestamp, url, self.download_file, is_file)
         self.bubble_layout.addWidget(bubble)
         self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
 
@@ -83,11 +83,13 @@ class ChatWindow(QWidget):
                 "uuid": get_client_uuid(),
                 "tunnel_id": self.tunnel_id,
                 "text": texto,
-                "enviado_en": int(time.time() * 1000)
+                "enviado_en": int(time.time() * 1000),
+                "tipo": "texto",
+                "contenido": texto,
             }
             try:
-                # Envío directo del objeto; TunnelClient gestionará el formateo
-                self.client.send(mensaje)
+                # Solo envías por socket, y TunnelClient se encarga de registrar
+                self.client.send(json.dumps(mensaje) + "\n")
                 self.mostrar_mensaje(texto, self.alias, True, int(time.time() * 1000))
                 self.input_field.clear()
 
@@ -132,10 +134,9 @@ class ChatWindow(QWidget):
                 "tunnel_id": self.tunnel_id,
                 "filename": filename,
                 "url": url,
-                "contenido": url,
                 "enviado_en": int(time.time() * 1000)
             }
-            self.client.send(mensaje)
+            self.client.send(json.dumps(mensaje) + "\n")
             self.mostrar_mensaje(f"{filename} 📎", self.alias, True, int(time.time() * 1000))
 
         except Exception as e:
@@ -145,60 +146,78 @@ class ChatWindow(QWidget):
     def procesar_mensaje(self, mensaje_json):
         try:
             mensaje = json.loads(mensaje_json)
-            tipo = mensaje.get("type", mensaje.get("tipo", "text"))
-            remitente = mensaje.get("from", mensaje.get("alias", "Desconocido"))
+            tipo = mensaje.get("type", "text")
+            remitente = mensaje.get("from", "Desconocido")
 
-            if tipo == "text" or tipo == "texto":
-                texto = mensaje.get("text") or mensaje.get("contenido", "")
-                self.mostrar_mensaje(texto, remitente, False, mensaje.get("enviado_en"))
+            if tipo == "text":
+                texto = mensaje.get("text", "")
+                self.mostrar_mensaje(f"{remitente}: {texto}")
 
             elif tipo == "file":
                 nombre = mensaje.get("filename", "archivo")
                 url = mensaje.get("url")
 
                 if not url:
-                    self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} (sin enlace)", remitente, False, mensaje.get("enviado_en"))
+                    self.mostrar_mensaje(
+                        f"{remitente} envió un archivo: {nombre} (sin enlace)",
+                        remitente,
+                        False,
+                        mensaje.get("enviado_en"),
+                    )
                     return
 
-                # Mostrar mensaje clickable
-                self.mostrar_mensaje(f"{remitente} envió un archivo: {nombre} 📎", remitente, False, mensaje.get("enviado_en"))
+                # Mostrar mensaje con enlace para descargar
+                self.mostrar_mensaje(
+                    nombre,
+                    remitente,
+                    False,
+                    mensaje.get("enviado_en"),
+                    url,
+                    True,
+                )
+                if self.on_file_event:
+                    self.on_file_event(self.tunnel_id, nombre, url)
 
                 # Intentar descargar al instante
-                if url.startswith("http"):
-                    full_url = url
-                else:
-                    full_url = f"{BASE_SERVER}{url}"
-                respuesta = requests.get(full_url, stream=True)
+                respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
                 if respuesta.status_code != 200:
-                    self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.", "Sistema", True)
+                    self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
                     return
 
-                # Preguntar dónde guardar el archivo
-                ruta_guardado, _ = QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
-                if ruta_guardado:
-                    from PyQt5.QtWidgets import QProgressDialog
+    def download_file(self, url, nombre):
+        try:
+            respuesta = requests.get(f"http://symbolsaps.ddns.net:8000{url}", stream=True)
+            if respuesta.status_code != 200:
+                self.mostrar_mensaje("⚠️ No se pudo descargar el archivo.")
+                return
 
-                    total_size = int(respuesta.headers.get('content-length', 0))
-                    progress = QProgressDialog("Descargando archivo...", "Cancelar", 0, total_size, self)
-                    progress.setWindowTitle("Progreso de descarga")
-                    progress.setWindowModality(True)
-                    progress.setMinimumDuration(0)
-                    progress.setValue(0)
+            ruta_guardado, _ = QFileDialog.getSaveFileName(self, "Guardar archivo recibido", nombre)
+            if ruta_guardado:
+                from PyQt5.QtWidgets import QProgressDialog
 
                     with open(ruta_guardado, "wb") as f:
                         downloaded = 0
                         for chunk in respuesta.iter_content(chunk_size=8192):
                             if progress.wasCanceled():
-                                self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.", "Sistema", True)
+                                self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.")
                                 return
                             f.write(chunk)
                             downloaded += len(chunk)
                             progress.setValue(downloaded)
 
-                    progress.close()
-                    self.mostrar_mensaje(f"✅ Archivo guardado como: {ruta_guardado}", "Sistema", True)
+                with open(ruta_guardado, "wb") as f:
+                    downloaded = 0
+                    for chunk in respuesta.iter_content(chunk_size=8192):
+                        if progress.wasCanceled():
+                            self.mostrar_mensaje("⛔ Descarga cancelada por el usuario.")
+                            return
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        progress.setValue(downloaded)
 
+                progress.close()
+                self.mostrar_mensaje(f"✅ Archivo guardado como: {ruta_guardado}", "Sistema", True)
         except Exception as e:
-            self.mostrar_mensaje(f"⚠️ Error al procesar mensaje: {e}", "Sistema", True)
+            self.mostrar_mensaje(f"⚠️ Error al descargar archivo: {e}", "Sistema", True)
 
 
