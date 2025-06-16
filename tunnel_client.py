@@ -2,7 +2,12 @@ import socket
 import threading
 from password_utils import verificar_password
 from db_cliente import crear_tunel, obtener_tunel_por_nombre, guardar_uuid_localmente, get_client_uuid
-import requests
+from app_logger import logger
+try:
+    import requests
+except Exception as e:  # pragma: no cover - env may lack requests
+    requests = None
+    logger.warning(f"No se pudo importar requests: {e}")
 import json
 
 
@@ -31,18 +36,21 @@ class TunnelClient:
             "sistema": info["sistema"]
         }
 
-        try:
-            requests.post(
-                "http://symbolsaps.ddns.net:8000/api/registrar_alias",
-                json={
-                    "uuid": self.uuid,
-                    "tunnel_id": self.tunnel_id,
-                    "alias": self.alias
-                },
-                timeout=5
-            )
-        except Exception as e:
-            print("⚠️ No se pudo registrar alias:", e)
+        if requests:
+            try:
+                requests.post(
+                    "http://symbolsaps.ddns.net:8000/api/registrar_alias",
+                    json={
+                        "uuid": self.uuid,
+                        "tunnel_id": self.tunnel_id,
+                        "alias": self.alias
+                    },
+                    timeout=5
+                )
+            except Exception as e:
+                logger.warning(f"No se pudo registrar alias: {e}")
+        else:
+            logger.warning("requests no disponible; no se registrará alias")
 
         self.socket.sendall((json.dumps(handshake) + "\n").encode("utf-8"))
         self.running = True

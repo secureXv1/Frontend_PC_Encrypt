@@ -42,7 +42,12 @@ if QtWidgets:
             self.pages.setCurrentIndex(index)
 
     def main():
-        app = QtWidgets.QApplication(sys.argv)
+        logger.info("Iniciando interfaz gráfica...")
+        try:
+            app = QtWidgets.QApplication(sys.argv)
+        except Exception as exc:
+            logger.error(f"No se pudo iniciar QApplication: {exc}", exc_info=True)
+            return
 
         # Datos del cliente
         uuid = get_client_uuid()
@@ -86,9 +91,13 @@ if QtWidgets:
         """)
 
         # Lanza MainWindow que incluye el sidebar y las páginas
-        window = MainWindow(uuid=uuid, hostname=info["hostname"], sistema=info["sistema"])
-        window.show()
-        sys.exit(app.exec_())
+        try:
+            window = MainWindow(uuid=uuid, hostname=info["hostname"], sistema=info["sistema"])
+            window.show()
+            logger.info("Aplicación iniciada correctamente")
+            sys.exit(app.exec_())
+        except Exception as exc:
+            logger.error(f"Error ejecutando la interfaz gráfica: {exc}", exc_info=True)
 else:
     def main():
         logger.error("PyQt5 no disponible. La interfaz no se puede mostrar.")
