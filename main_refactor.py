@@ -1,8 +1,9 @@
+import threading
+from app_logger import logger
 try:
     from PyQt5 import QtWidgets  # type: ignore
 except Exception as e:  # pragma: no cover - env may lack PyQt5
     QtWidgets = None
-    from app_logger import logger
     logger.error(f"No se pudo importar PyQt5: {e}")
 import sys
 from registrar_info_red import registrar_info_en_db
@@ -90,13 +91,20 @@ if QtWidgets:
         sys.exit(app.exec_())
 else:
     def main():
-        from app_logger import logger
         logger.error("PyQt5 no disponible. La interfaz no se puede mostrar.")
 
 if __name__ == "__main__":
-    try:
-        registrar_info_en_db()
-    except Exception as e:
-        from app_logger import logger
-        logger.error(f"No se pudo registrar info en la DB: {e}")
+    if QtWidgets:
+        def _reg_thread():
+            try:
+                registrar_info_en_db()
+            except Exception as exc:
+                logger.error(f"No se pudo registrar info en la DB: {exc}")
+
+        threading.Thread(target=_reg_thread, daemon=True).start()
+    else:
+        try:
+            registrar_info_en_db()
+        except Exception as exc:
+            logger.error(f"No se pudo registrar info en la DB: {exc}")
     main()

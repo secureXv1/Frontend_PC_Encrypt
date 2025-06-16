@@ -1,15 +1,14 @@
 import socket
+from app_logger import logger
 try:
     import requests
 except Exception as e:  # pragma: no cover - env may lack requests
     requests = None
-    from app_logger import logger
     logger.warning(f"No se pudo importar requests: {e}")
 import time
 from db_cliente import get_client_uuid, get_connection  # Usa tu conexión existente
 
 def obtener_info_red():
-    from app_logger import logger
     logger.info("Obteniendo hostname...")
     hostname = socket.gethostname()
     logger.info(f"Hostname: {hostname}")
@@ -40,6 +39,8 @@ def obtener_ubicacion():
     try:
         if requests:
             r = requests.get("https://ipapi.co/json/")
+            if r.status_code != 200:
+                raise RuntimeError(f"HTTP {r.status_code}")
             data = r.json()
         else:
             raise RuntimeError("módulo requests no disponible")
@@ -51,15 +52,18 @@ def obtener_ubicacion():
             "lat": data.get("latitude"),
             "lon": data.get("longitude")
         }
-    except Exception:
+    except Exception as e:
+        logger.warning(f"No se pudo obtener ubicación: {e}")
         return {}
 
 def registrar_info_en_db():
+    logger.info("Registrando información de red en la base de datos...")
     uuid = get_client_uuid()
     hostname, ip_local, ip_publica = obtener_info_red()
     ubicacion = obtener_ubicacion()
 
     try:
+        logger.info("Conectando a la base de datos...")
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -81,10 +85,8 @@ def registrar_info_en_db():
         ))
         conn.commit()
         conn.close()
-        from app_logger import logger
         logger.info("Información de red y ubicación registrada.")
     except Exception as e:
-        from app_logger import logger
         logger.error(f"Error registrando info de red en la DB: {e}")
 
 def enviar_info_al_backend():
@@ -108,8 +110,6 @@ def enviar_info_al_backend():
         if not requests:
             raise RuntimeError("módulo requests no disponible")
         r = requests.post("http://localhost:8000/api/registrar_info_red", json=payload)
-        from app_logger import logger
         logger.info(f"Enviado al backend: {r.status_code} {r.text}")
     except Exception as e:
-        from app_logger import logger
         logger.error(f"Error enviando info al backend: {e}")
