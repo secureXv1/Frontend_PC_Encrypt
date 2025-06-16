@@ -1,5 +1,9 @@
 import socket
-import requests
+try:
+    import requests
+except Exception as e:  # pragma: no cover - env may lack requests
+    requests = None
+    print(f"⚠️ No se pudo importar requests: {e}")
 import time
 from db_cliente import get_client_uuid, get_connection  # Usa tu conexión existente
 
@@ -21,7 +25,10 @@ def obtener_info_red():
 
     # ☁️ Obtener IP pública por internet
     try:
-        ip_publica = requests.get("https://api.ipify.org").text
+        if requests:
+            ip_publica = requests.get("https://api.ipify.org").text
+        else:
+            raise RuntimeError("módulo requests no disponible")
     except Exception as e:
         print("⚠️ No se pudo obtener IP pública:", e)
 
@@ -29,8 +36,12 @@ def obtener_info_red():
 
 def obtener_ubicacion():
     try:
-        r = requests.get("https://ipapi.co/json/")
-        data = r.json()
+        if requests:
+            r = requests.get("https://ipapi.co/json/")
+            data = r.json()
+        else:
+            raise RuntimeError("módulo requests no disponible")
+
         return {
             "ciudad": data.get("city"),
             "region": data.get("region"),
@@ -38,7 +49,7 @@ def obtener_ubicacion():
             "lat": data.get("latitude"),
             "lon": data.get("longitude")
         }
-    except:
+    except Exception:
         return {}
 
 def registrar_info_en_db():
@@ -90,6 +101,8 @@ def enviar_info_al_backend():
     }
 
     try:
+        if not requests:
+            raise RuntimeError("módulo requests no disponible")
         r = requests.post("http://localhost:8000/api/registrar_info_red", json=payload)
         print("📡 Enviado al backend:", r.status_code, r.text)
     except Exception as e:

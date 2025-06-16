@@ -1,4 +1,8 @@
-import mysql.connector
+try:
+    import mysql.connector
+except Exception as e:  # pragma: no cover - env may lack MySQL
+    mysql = None
+    print(f"⚠️ No se pudo importar mysql.connector: {e}")
 import os
 import requests
 import uuid
@@ -6,6 +10,8 @@ import socket
 import platform
 
 def get_connection():
+    if mysql is None:
+        raise RuntimeError("mysql.connector no disponible")
     return mysql.connector.connect(
         host='symbolsaps.ddns.net',
         user='admin',
