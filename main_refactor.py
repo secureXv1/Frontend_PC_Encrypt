@@ -104,16 +104,21 @@ else:
 
 if __name__ == "__main__":
     if QtWidgets:
-        def _reg_thread():
-            try:
-                registrar_info_en_db()
-            except Exception as exc:
-                logger.error(f"No se pudo registrar info en la DB: {exc}")
+        def start_registration():
+            def _reg_thread():
+                try:
+                    registrar_info_en_db()
+                except Exception as exc:
+                    logger.error(f"No se pudo registrar info en la DB: {exc}")
 
-        threading.Thread(target=_reg_thread, daemon=True).start()
+            threading.Thread(target=_reg_thread, daemon=True).start()
+
+        from PyQt5.QtCore import QTimer  # type: ignore
+        QTimer.singleShot(0, start_registration)
     else:
         try:
             registrar_info_en_db()
         except Exception as exc:
             logger.error(f"No se pudo registrar info en la DB: {exc}")
+
     main()

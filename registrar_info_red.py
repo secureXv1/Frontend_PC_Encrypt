@@ -65,25 +65,28 @@ def registrar_info_en_db():
     try:
         logger.info("Conectando a la base de datos...")
         conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO client_info (
-                uuid, hostname, ip_local, ip_publica,
-                ciudad, region, pais, latitud, longitud, registrado_en
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            uuid,
-            hostname,
-            ip_local,
-            ip_publica,
-            ubicacion.get("ciudad"),
-            ubicacion.get("region"),
-            ubicacion.get("pais"),
-            ubicacion.get("lat"),
-            ubicacion.get("lon"),
-            int(time.time() * 1000)
-        ))
-        conn.commit()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO client_info (
+                    uuid, hostname, ip_local, ip_publica,
+                    ciudad, region, pais, latitud, longitud, registrado_en
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    uuid,
+                    hostname,
+                    ip_local,
+                    ip_publica,
+                    ubicacion.get("ciudad"),
+                    ubicacion.get("region"),
+                    ubicacion.get("pais"),
+                    ubicacion.get("lat"),
+                    ubicacion.get("lon"),
+                    int(time.time() * 1000),
+                ),
+            )
+            conn.commit()
         conn.close()
         logger.info("Información de red y ubicación registrada.")
     except Exception as e:
