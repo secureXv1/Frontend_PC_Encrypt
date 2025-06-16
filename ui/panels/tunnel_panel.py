@@ -319,7 +319,6 @@ class TunnelPanel(QWidget):
         try:
             print("📦 Mensaje recibido bruto:", repr(mensaje))
 
-            # Ignorar mensajes tipo "OK" del servidor
             if mensaje.strip() == "OK":
                 print("ℹ️ Mensaje de confirmación recibido. Ignorado.")
                 return
@@ -330,6 +329,17 @@ class TunnelPanel(QWidget):
             if tunel_id not in self.conexiones_tuneles:
                 print("⚠️ Mensaje recibido de túnel desconocido")
                 return
+
+            # ⚠️ Si viene campo "contenido", decodifícalo
+            if "contenido" in data:
+                contenido_str = data["contenido"]
+                try:
+                    contenido_dict = json.loads(contenido_str)
+                    print("📨 Contenido decodificado:", contenido_dict)
+                    mensaje = json.dumps(contenido_dict)  # lo pasamos como string JSON otra vez
+                except Exception as e:
+                    print("❌ Error al decodificar 'contenido':", e)
+                    return
 
             chat = self.conexiones_tuneles[tunel_id]["chat"]
             chat.procesar_mensaje(mensaje)
