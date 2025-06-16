@@ -297,6 +297,7 @@ class TunnelPanel(QWidget):
                 tunnel_id=tunel["id"],
                 uuid=uuid,
                 on_file_event=self.handle_file_event,
+                on_receive_callback=self.recibir_mensaje
             )
 
             layout.addLayout(header_layout)
@@ -461,6 +462,7 @@ class TunnelPanel(QWidget):
                 tunnel_id=tunel["id"],
                 uuid=uuid,
                 on_file_event=self.handle_file_event,
+                on_receive_callback=self.recibir_mensaje
             )
 
             layout.addLayout(header_layout)
