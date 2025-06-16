@@ -4,7 +4,11 @@ except Exception as e:  # pragma: no cover - env may lack MySQL
     mysql = None
     print(f"⚠️ No se pudo importar mysql.connector: {e}")
 import os
-import requests
+try:
+    import requests
+except Exception as e:  # pragma: no cover - env may lack requests
+    requests = None
+    print(f"⚠️ No se pudo importar requests: {e}")
 import uuid
 import socket
 import platform
@@ -59,6 +63,9 @@ def get_client_uuid():
             return f.read().strip()
 
 def registrar_cliente(uuid_value, hostname, sistema):
+    if not requests:
+        print("⚠️ requests no disponible; no se enviará al backend")
+        return
     try:
         response = requests.post(
             "http://symbolsaps.ddns.net:8000/api/registrar_cliente",
@@ -79,6 +86,9 @@ def registrar_alias_cliente(uuid_value, tunnel_id, alias):
         "tunnel_id": tunnel_id,
         "alias": alias
     }
+    if not requests:
+        print("⚠️ requests no disponible; no se enviará alias al backend")
+        return
     try:
         response = requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json=payload)
         response.raise_for_status()
