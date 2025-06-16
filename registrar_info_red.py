@@ -46,28 +46,31 @@ def registrar_info_en_db():
     hostname, ip_local, ip_publica = obtener_info_red()
     ubicacion = obtener_ubicacion()
 
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO client_info (
-            uuid, hostname, ip_local, ip_publica,
-            ciudad, region, pais, latitud, longitud, registrado_en
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (
-        uuid,
-        hostname,
-        ip_local,
-        ip_publica,
-        ubicacion.get("ciudad"),
-        ubicacion.get("region"),
-        ubicacion.get("pais"),
-        ubicacion.get("lat"),
-        ubicacion.get("lon"),
-        int(time.time() * 1000)
-    ))
-    conn.commit()
-    conn.close()
-    print("📍 Información de red y ubicación registrada.")
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO client_info (
+                uuid, hostname, ip_local, ip_publica,
+                ciudad, region, pais, latitud, longitud, registrado_en
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            uuid,
+            hostname,
+            ip_local,
+            ip_publica,
+            ubicacion.get("ciudad"),
+            ubicacion.get("region"),
+            ubicacion.get("pais"),
+            ubicacion.get("lat"),
+            ubicacion.get("lon"),
+            int(time.time() * 1000)
+        ))
+        conn.commit()
+        conn.close()
+        print("📍 Información de red y ubicación registrada.")
+    except Exception as e:
+        print("❌ Error registrando info de red en la DB:", e)
 
 def enviar_info_al_backend():
     uuid = get_client_uuid()

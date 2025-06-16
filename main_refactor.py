@@ -82,7 +82,9 @@ def main():
     window.show()
     sys.exit(app.exec_())
 
-registrar_info_en_db()
-
 if __name__ == "__main__":
+    try:
+        registrar_info_en_db()
+    except Exception as e:
+        print(f"⚠️ No se pudo registrar info en la DB: {e}")
     main()
