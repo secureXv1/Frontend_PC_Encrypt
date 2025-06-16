@@ -25,7 +25,7 @@ class TunnelClient:
     def connect(self):
         self.socket.connect((self.host, self.port))
 
-        from main_refactor import obtener_info_equipo
+        from db_cliente import obtener_info_equipo
         info = obtener_info_equipo()
 
         handshake = {
