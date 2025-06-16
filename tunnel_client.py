@@ -32,11 +32,15 @@ class TunnelClient:
         }
 
         try:
-            requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json={
-                "uuid": self.uuid,
-                "tunnel_id": self.tunnel_id,
-                "alias": self.alias
-            })
+            requests.post(
+                "http://symbolsaps.ddns.net:8000/api/registrar_alias",
+                json={
+                    "uuid": self.uuid,
+                    "tunnel_id": self.tunnel_id,
+                    "alias": self.alias
+                },
+                timeout=5
+            )
         except Exception as e:
             print("⚠️ No se pudo registrar alias:", e)
 

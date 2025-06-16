@@ -22,7 +22,8 @@ def get_connection():
         host='symbolsaps.ddns.net',
         user='admin',
         password='Febrero2025*-+',
-        database='securex'
+        database='securex',
+        connection_timeout=5
     )
 
 def crear_tunel(nombre, password_hash):
@@ -77,7 +78,8 @@ def registrar_cliente(uuid_value, hostname, sistema):
                 "uuid": uuid_value,
                 "hostname": hostname,
                 "sistema": sistema
-            }
+            },
+            timeout=5
         )
         response.raise_for_status()
         from app_logger import logger
@@ -97,7 +99,11 @@ def registrar_alias_cliente(uuid_value, tunnel_id, alias):
         logger.warning("requests no disponible; no se enviará alias al backend")
         return
     try:
-        response = requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json=payload)
+        response = requests.post(
+            "http://symbolsaps.ddns.net:8000/api/registrar_alias",
+            json=payload,
+            timeout=5
+        )
         response.raise_for_status()
         from app_logger import logger
         logger.info("Alias registrado correctamente")

@@ -27,7 +27,7 @@ def obtener_info_red():
     # ☁️ Obtener IP pública por internet
     try:
         if requests:
-            ip_publica = requests.get("https://api.ipify.org").text
+            ip_publica = requests.get("https://api.ipify.org", timeout=5).text
         else:
             raise RuntimeError("módulo requests no disponible")
     except Exception as e:
@@ -38,7 +38,7 @@ def obtener_info_red():
 def obtener_ubicacion():
     try:
         if requests:
-            r = requests.get("https://ipapi.co/json/")
+            r = requests.get("https://ipapi.co/json/", timeout=5)
             if r.status_code != 200:
                 raise RuntimeError(f"HTTP {r.status_code}")
             data = r.json()
@@ -109,7 +109,7 @@ def enviar_info_al_backend():
     try:
         if not requests:
             raise RuntimeError("módulo requests no disponible")
-        r = requests.post("http://localhost:8000/api/registrar_info_red", json=payload)
+        r = requests.post("http://localhost:8000/api/registrar_info_red", json=payload, timeout=5)
         logger.info(f"Enviado al backend: {r.status_code} {r.text}")
     except Exception as e:
         logger.error(f"Error enviando info al backend: {e}")
