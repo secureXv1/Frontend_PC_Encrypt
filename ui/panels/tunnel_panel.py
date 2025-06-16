@@ -1,6 +1,13 @@
 from PyQt5.QtWidgets import ( QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit, QHBoxLayout,
 QFileDialog, QMessageBox, QScrollArea, QFrame, QSpacerItem, QSizePolicy, QDialog, QFormLayout, QListWidget, QListWidgetItem)
-from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QVariantAnimation, pyqtProperty
+from PyQt5.QtCore import (
+    Qt,
+    QTimer,
+    QPropertyAnimation,
+    QVariantAnimation,
+    pyqtProperty,
+    pyqtSignal,
+)
 from PyQt5.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter
 from PyQt5.QtSvg import QSvgRenderer
 import base64, json
@@ -73,6 +80,10 @@ class TunnelCard(QFrame):
         self.setPalette(palette)
 
 class TunnelPanel(QWidget):
+    """Panel principal para gestionar y mostrar los túneles."""
+
+    # Signal para procesar mensajes en el hilo de la interfaz
+    message_received = pyqtSignal(str)
     def __init__(self, uuid, hostname, sistema, parent=None):
         super().__init__(parent)
         self.uuid = uuid
@@ -83,6 +94,9 @@ class TunnelPanel(QWidget):
         self.participants = {}
         self.files = {}
         self.cliente = None
+
+        # Conectar la señal que procesa mensajes entrantes en el hilo de Qt
+        self.message_received.connect(self._handle_incoming_message)
 
         from db_cliente import get_client_uuid
         _ = get_client_uuid()  # 👈 Esto asegura que se registre el cliente
@@ -316,6 +330,12 @@ class TunnelPanel(QWidget):
             QMessageBox.critical(self, "Error", f"Error de conexión:\n{e}")
 
     def recibir_mensaje(self, mensaje):
+        """Callback del cliente de túnel (hilo de red)."""
+        # Redirigir el procesamiento al hilo principal a través de una señal
+        self.message_received.emit(mensaje)
+
+    def _handle_incoming_message(self, mensaje):
+        """Procesa ``mensaje`` en el hilo principal de Qt."""
         try:
             print("📦 Mensaje recibido bruto:", repr(mensaje))
 
