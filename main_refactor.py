@@ -1,6 +1,10 @@
-from PyQt5 import QtWidgets
-from db_cliente import get_client_uuid, obtener_info_equipo
+try:
+    from PyQt5 import QtWidgets
+except Exception as e:  # pragma: no cover - env may lack PyQt5
+    QtWidgets = None
+    print(f"⚠️ No se pudo importar PyQt5: {e}")
 import sys
+from db_cliente import get_client_uuid, obtener_info_equipo
 from ui.sidebar import Sidebar
 from ui.panels.home_panel import HomePanel
 from ui.panels.tunnel_panel import TunnelPanel
@@ -34,6 +38,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pages.setCurrentIndex(index)
         
 def main():
+    if QtWidgets is None:
+        print("❌ PyQt5 no disponible. La interfaz no se puede mostrar.")
+        return
+
     app = QtWidgets.QApplication(sys.argv)
 
     # Datos del cliente
