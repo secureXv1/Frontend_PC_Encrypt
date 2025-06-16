@@ -165,6 +165,11 @@ class TunnelPanel(QWidget):
 
         self.actualizar_lista_tuneles()
 
+        # Refrescar participantes y archivos periódicamente
+        self.refresh_timer = QTimer(self)
+        self.refresh_timer.timeout.connect(self._refresh_current_tunnel)
+        self.refresh_timer.start(5000)  # cada 5 segundos
+
     # FUNCIONES!!!!
 
     def crear_tunel_desde_ui(self):
@@ -620,4 +625,13 @@ class TunnelPanel(QWidget):
             chat = self.conexiones_tuneles[tid].get("chat")
             if chat:
                 chat.download_file(url, nombre)
+
+    def _refresh_current_tunnel(self):
+        """Actualizar participantes y archivos del túnel activo."""
+        tid = self.current_tunnel_id()
+        if not tid:
+            return
+        self.fetch_participants(tid)
+        self.fetch_files(tid)
+        self.update_side_lists(tid)
 
