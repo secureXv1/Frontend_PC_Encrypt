@@ -4,7 +4,9 @@ import time
 from db_cliente import get_client_uuid, get_connection  # Usa tu conexión existente
 
 def obtener_info_red():
+    print("🔍 Obteniendo hostname...")
     hostname = socket.gethostname()
+    print("✅ Hostname:", hostname)
     ip_local = "127.0.0.1"
     ip_publica = "No disponible"
 

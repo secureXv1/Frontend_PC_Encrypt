@@ -8,8 +8,6 @@ from ui.panels.encryption_panel import EncryptionPanel
 from ui.panels.settings_panel import SettingsPanel
 from registrar_info_red import registrar_info_en_db
 
-registrar_info_en_db()
-
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, uuid, hostname, sistema):
         super().__init__()
@@ -83,6 +81,8 @@ def main():
     window = MainWindow(uuid=uuid, hostname=info["hostname"], sistema=info["sistema"])
     window.show()
     sys.exit(app.exec_())
+
+registrar_info_en_db()
 
 if __name__ == "__main__":
     main()
