@@ -12,7 +12,7 @@ from message_bubble import MessageBubble
 
 
 class ChatWindow(QWidget):
-    def __init__(self, alias, client, tunnel_id, uuid, on_file_event=None):
+    def __init__(self, alias, client, tunnel_id, uuid, on_file_event=None, on_receive_callback=None):
         super().__init__()
         self.alias = alias
         self.client = client  # instancia de TunnelClient
@@ -64,6 +64,9 @@ class ChatWindow(QWidget):
 
         layout.addLayout(input_layout)
         self.setLayout(layout)
+
+        if client and on_receive_callback:
+            client.on_receive_callback = on_receive_callback
 
 
     def mostrar_mensaje(self, texto, sender, is_sender=False, timestamp=None, url=None):
