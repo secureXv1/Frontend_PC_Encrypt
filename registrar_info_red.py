@@ -5,26 +5,25 @@ from db_cliente import get_client_uuid, get_connection  # Usa tu conexión exist
 
 def obtener_info_red():
     hostname = socket.gethostname()
-    ip_local = "127.0.0.1"  # fallback
+    ip_local = "127.0.0.1"
     ip_publica = "No disponible"
 
+    # 🌐 Obtener IP local robusta (funciona en Windows, macOS, Linux)
     try:
-        # 🔍 Método robusto para obtener IP local real
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))  # conexión falsa
+        s.connect(("8.8.8.8", 80))
         ip_local = s.getsockname()[0]
         s.close()
     except Exception as e:
         print("⚠️ No se pudo obtener IP local:", e)
 
+    # ☁️ Obtener IP pública por internet
     try:
-        import requests
         ip_publica = requests.get("https://api.ipify.org").text
     except Exception as e:
         print("⚠️ No se pudo obtener IP pública:", e)
 
     return hostname, ip_local, ip_publica
-
 
 def obtener_ubicacion():
     try:
