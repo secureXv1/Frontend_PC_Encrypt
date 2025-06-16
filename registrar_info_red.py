@@ -3,14 +3,16 @@ try:
     import requests
 except Exception as e:  # pragma: no cover - env may lack requests
     requests = None
-    print(f"⚠️ No se pudo importar requests: {e}")
+    from app_logger import logger
+    logger.warning(f"No se pudo importar requests: {e}")
 import time
 from db_cliente import get_client_uuid, get_connection  # Usa tu conexión existente
 
 def obtener_info_red():
-    print("🔍 Obteniendo hostname...")
+    from app_logger import logger
+    logger.info("Obteniendo hostname...")
     hostname = socket.gethostname()
-    print("✅ Hostname:", hostname)
+    logger.info(f"Hostname: {hostname}")
     ip_local = "127.0.0.1"
     ip_publica = "No disponible"
 
@@ -21,7 +23,7 @@ def obtener_info_red():
         ip_local = s.getsockname()[0]
         s.close()
     except Exception as e:
-        print("⚠️ No se pudo obtener IP local:", e)
+        logger.warning(f"No se pudo obtener IP local: {e}")
 
     # ☁️ Obtener IP pública por internet
     try:
@@ -30,7 +32,7 @@ def obtener_info_red():
         else:
             raise RuntimeError("módulo requests no disponible")
     except Exception as e:
-        print("⚠️ No se pudo obtener IP pública:", e)
+        logger.warning(f"No se pudo obtener IP pública: {e}")
 
     return hostname, ip_local, ip_publica
 
@@ -79,9 +81,11 @@ def registrar_info_en_db():
         ))
         conn.commit()
         conn.close()
-        print("📍 Información de red y ubicación registrada.")
+        from app_logger import logger
+        logger.info("Información de red y ubicación registrada.")
     except Exception as e:
-        print("❌ Error registrando info de red en la DB:", e)
+        from app_logger import logger
+        logger.error(f"Error registrando info de red en la DB: {e}")
 
 def enviar_info_al_backend():
     uuid = get_client_uuid()
@@ -104,6 +108,8 @@ def enviar_info_al_backend():
         if not requests:
             raise RuntimeError("módulo requests no disponible")
         r = requests.post("http://localhost:8000/api/registrar_info_red", json=payload)
-        print("📡 Enviado al backend:", r.status_code, r.text)
+        from app_logger import logger
+        logger.info(f"Enviado al backend: {r.status_code} {r.text}")
     except Exception as e:
-        print("❌ Error enviando info al backend:", e)
+        from app_logger import logger
+        logger.error(f"Error enviando info al backend: {e}")

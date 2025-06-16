@@ -2,7 +2,8 @@ try:
     from PyQt5 import QtWidgets
 except Exception as e:  # pragma: no cover - env may lack PyQt5
     QtWidgets = None
-    print(f"⚠️ No se pudo importar PyQt5: {e}")
+    from app_logger import logger
+    logger.error(f"No se pudo importar PyQt5: {e}")
 import sys
 from db_cliente import get_client_uuid, obtener_info_equipo
 from ui.sidebar import Sidebar
@@ -39,7 +40,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
 def main():
     if QtWidgets is None:
-        print("❌ PyQt5 no disponible. La interfaz no se puede mostrar.")
+        from app_logger import logger
+        logger.error("PyQt5 no disponible. La interfaz no se puede mostrar.")
         return
 
     app = QtWidgets.QApplication(sys.argv)
@@ -94,5 +96,6 @@ if __name__ == "__main__":
     try:
         registrar_info_en_db()
     except Exception as e:
-        print(f"⚠️ No se pudo registrar info en la DB: {e}")
+        from app_logger import logger
+        logger.error(f"No se pudo registrar info en la DB: {e}")
     main()
