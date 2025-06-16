@@ -148,11 +148,7 @@ class ChatWindow(QWidget):
 
     def procesar_mensaje(self, mensaje_json):
         try:
-            try:
-                mensaje = json.loads(mensaje_json)
-            except json.JSONDecodeError:
-                import ast
-                mensaje = ast.literal_eval(mensaje_json)
+            mensaje = json.loads(mensaje_json)
 
             tipo = mensaje.get("type") or mensaje.get("tipo", "text")
             remitente = mensaje.get("from", "Desconocido")
@@ -174,7 +170,6 @@ class ChatWindow(QWidget):
                     )
                     return
 
-                # Mostrar mensaje con enlace para descargar
                 self.mostrar_mensaje(
                     f"{remitente} envió un archivo: {nombre}",
                     remitente,
@@ -187,6 +182,7 @@ class ChatWindow(QWidget):
 
         except Exception as e:
             self.mostrar_mensaje(f"⚠️ Error al procesar mensaje: {e}", "Sistema", True)
+
 
     def download_file(self, url, nombre):
         try:

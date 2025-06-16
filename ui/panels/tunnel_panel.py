@@ -317,11 +317,14 @@ class TunnelPanel(QWidget):
 
     def recibir_mensaje(self, mensaje):
         try:
-            try:
-                data = json.loads(mensaje)
-            except json.JSONDecodeError:
-                import ast
-                data = ast.literal_eval(mensaje)
+            print("📦 Mensaje recibido bruto:", repr(mensaje))
+
+            # Ignorar mensajes tipo "OK" del servidor
+            if mensaje.strip() == "OK":
+                print("ℹ️ Mensaje de confirmación recibido. Ignorado.")
+                return
+
+            data = json.loads(mensaje)
             tunel_id = data.get("tunnel_id")
 
             if tunel_id not in self.conexiones_tuneles:
@@ -334,7 +337,6 @@ class TunnelPanel(QWidget):
         except Exception as e:
             print("⚠️ Error al procesar mensaje:", e)
 
-    
     def mostrar_menu_tunel(self):
         from PyQt5.QtWidgets import QMenu, QAction
 
