@@ -110,7 +110,12 @@ if QtWidgets:
                     except Exception:
                         logger.exception("Error en registro de red")
 
-                threading.Thread(target=worker, daemon=True).start()
+                try:
+                    from multiprocessing import Process
+                    Process(target=worker, daemon=True).start()
+                except Exception as e:
+                    logger.warning(f"Fallo al iniciar proceso para registro: {e}")
+                    threading.Thread(target=worker, daemon=True).start()
 
             if QtCore:
                 # Retrasar un poco para dar tiempo a que cargue la interfaz
