@@ -151,6 +151,12 @@ class TunnelPanel(QWidget):
         self.tab_widget.currentChanged.connect(self._tab_changed)
         main_layout.addWidget(self.tab_widget, 4)
 
+        # Timer para refrescar participantes automáticamente
+        self.participant_timer = QTimer(self)
+        self.participant_timer.timeout.connect(self._actualizar_participantes_periodicamente)
+        self.participant_timer.setInterval(8000)  # 8000 ms = 8 segundos
+        self.participant_timer.start()
+
         # ==== PANEL DERECHO (Participantes y Archivos) ====
         right_panel = QVBoxLayout()
 
@@ -314,6 +320,7 @@ class TunnelPanel(QWidget):
             layout.addWidget(chat_window)
 
             self.tab_widget.addTab(tab, nombre)
+            self.participant_timer.start()
             self.tab_widget.setCurrentWidget(tab)
 
             self.conexiones_tuneles[tunel["id"]] = {
@@ -497,6 +504,7 @@ class TunnelPanel(QWidget):
             layout.addWidget(chat_window)
 
             self.tab_widget.addTab(tab, nombre)
+            self.participant_timer.start()
             self.tab_widget.setCurrentWidget(tab)
 
             self.conexiones_tuneles[tunel["id"]] = {
@@ -545,6 +553,7 @@ class TunnelPanel(QWidget):
         if not self.tab_widget.count():
             self.users_list.clear()
             self.files_list.clear()
+            self.participant_timer.stop()
 
     def cerrar_pestana_tunel(self, index):
         tab = self.tab_widget.widget(index)
@@ -676,3 +685,8 @@ class TunnelPanel(QWidget):
             if chat:
                 chat.download_file(url, nombre)
 
+    def _actualizar_participantes_periodicamente(self):
+        tid = self.current_tunnel_id()
+        if tid:
+            self.fetch_participants(tid)
+            self.update_side_lists(tid)
