@@ -136,6 +136,7 @@ class EncryptionPanel(QWidget):
 
 
 
+
     
     #Función para modificar el panel de acuerdo a la selección del usuario
     def handle_selection(self, operation, button):
@@ -156,7 +157,6 @@ class EncryptionPanel(QWidget):
             self.show_hide_ui()
         elif operation == "Extraer archivo":
             self.show_extract_ui()
-
 
 
 
@@ -235,10 +235,10 @@ class EncryptionPanel(QWidget):
                 ))
 
             # Mostrar confirmación
-            QtWidgets.QMessageBox.information(self, "Éxito", "✅ Llaves guardadas correctamente.")
+            QtWidgets.QMessageBox.information(self, "Éxito", "Llaves guardadas correctamente.")
 
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Error", f"❌ Error al generar llaves:\n{str(e)}")
+            QtWidgets.QMessageBox.critical(self, "Error", f"Error al generar llaves:\n{str(e)}")
 
     
 
