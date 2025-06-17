@@ -102,10 +102,12 @@ if QtWidgets:
             main_window = window
 
             def start_registration():
+                logger.info("Iniciando registro de red en segundo plano")
                 threading.Thread(target=registrar_info_en_db, daemon=True).start()
 
             if QtCore:
-                QtCore.QTimer.singleShot(0, start_registration)
+                # Retrasar un poco para dar tiempo a que cargue la interfaz
+                QtCore.QTimer.singleShot(1000, start_registration)
             else:
                 start_registration()
 

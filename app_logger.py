@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import threading
 
 log_dir = os.path.join(os.path.expanduser('~'), '.betty')
 os.makedirs(log_dir, exist_ok=True)
@@ -27,3 +28,13 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 
 sys.excepthook = handle_exception
+
+# Also capture exceptions in background threads (Python 3.8+)
+def thread_exception_handler(args):
+    logger.critical(
+        "Excepción no controlada en hilo",
+        exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+    )
+
+if hasattr(threading, "excepthook"):
+    threading.excepthook = thread_exception_handler

@@ -92,7 +92,9 @@ def registrar_info_en_db():
         conn.close()
         logger.info("Información de red y ubicación registrada.")
     except Exception as e:
-        logger.error(f"Error registrando info de red en la DB: {e}")
+        logger.error(
+            f"Error registrando info de red en la DB: {e}", exc_info=True
+        )
 
 def enviar_info_al_backend():
     uuid = get_client_uuid()
