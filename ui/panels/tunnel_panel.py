@@ -15,6 +15,7 @@ from tunnel_client import TunnelClient
 from db_cliente import obtener_tunel_por_nombre
 from password_utils import verificar_password
 from chat_window import ChatWindow
+import requests
 
 
 def colored_icon(svg_path, color, size=20):
@@ -522,12 +523,25 @@ class TunnelPanel(QWidget):
                 cliente.socket.close()
             except:
                 pass
+
+            # Notificar al backend que el cliente se desconectó
+            try:
+                import requests
+                requests.post("http://symbolsaps.ddns.net:8000/api/tunnels/disconnect", json={
+                    "uuid": self.uuid,
+                    "tunnel_id": tunel_id
+                })
+            except Exception as e:
+                print("⚠️ Error notificando desconexión:", e)
+
             del self.conexiones_tuneles[tunel_id]
             self.participants.pop(tunel_id, None)
             self.files.pop(tunel_id, None)
+
         idx = self.tab_widget.indexOf(tab)
         if idx >= 0:
             self.tab_widget.removeTab(idx)
+
         if not self.tab_widget.count():
             self.users_list.clear()
             self.files_list.clear()
@@ -569,22 +583,17 @@ class TunnelPanel(QWidget):
             self.update_side_lists(tid)
 
     def fetch_participants(self, tunnel_id):
-        """Fill ``self.participants`` with a list of aliases for ``tunnel_id``."""
-        import requests
+        """Llena ``self.participants`` con la lista de participantes reales para ``tunnel_id``."""
+        import requests, time
         current_alias = self.conexiones_tuneles.get(tunnel_id, {}).get("alias")
         participantes = []
+
         try:
-            resp = requests.get(
-                f"http://symbolsaps.ddns.net:8000/api/tunnels/{tunnel_id}/participants"
-            )
+            resp = requests.get(f"http://symbolsaps.ddns.net:8000/api/tunnels/{tunnel_id}/participants")
             if resp.status_code == 200:
                 data = resp.json()
                 if isinstance(data, dict):
-                    participantes = (
-                        data.get("participants")
-                        or data.get("data")
-                        or list(data)
-                    )
+                    participantes = data.get("participants") or data.get("data") or list(data)
                 else:
                     participantes = data
         except Exception as e:
@@ -593,13 +602,19 @@ class TunnelPanel(QWidget):
         if not isinstance(participantes, list):
             participantes = [participantes]
 
-        # Añadir nuestro propio alias si no está presente
-        if current_alias and all(
-            (isinstance(p, dict) and p.get("alias") != current_alias)
-            or (not isinstance(p, dict) and p != current_alias)
-            for p in participantes
-        ):
-            participantes.append({"alias": current_alias})
+        # Añadir nuestro propio alias si no está en la lista de aliases de nadie
+        if current_alias:
+            encontrado = any(
+                current_alias in p.get("aliases", [])
+                for p in participantes if isinstance(p, dict)
+            )
+            if not encontrado:
+                participantes.append({
+                    "aliases": [current_alias],
+                    "client_uuid": self.uuid,
+                    "hostname": self.hostname,
+                    "ultimo_acceso": int(time.time() * 1000)
+                })
 
         self.participants[tunnel_id] = participantes
 
@@ -618,10 +633,16 @@ class TunnelPanel(QWidget):
     def update_side_lists(self, tunnel_id):
         self.users_list.clear()
         for usuario in self.participants.get(tunnel_id, []):
-            alias = usuario.get("alias") if isinstance(usuario, dict) else usuario
+            if isinstance(usuario, dict):
+                alias_list = usuario.get("aliases", [])
+                alias = alias_list[0] if alias_list else "Sin alias"
+            else:
+                alias = str(usuario)
+
             current_alias = self.conexiones_tuneles.get(tunnel_id, {}).get("alias")
             if alias == current_alias:
                 alias = f"{alias} (tú)"
+
             self.users_list.addItem(alias)
 
         self.files_list.clear()
