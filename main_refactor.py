@@ -1,4 +1,5 @@
 from app_logger import logger
+import threading
 
 try:
     from PyQt5 import QtWidgets  # type: ignore
@@ -92,13 +93,11 @@ if QtWidgets:
 
         # Lanza MainWindow que incluye el sidebar y las páginas
         try:
-            registrar_info_en_db()
-        except Exception:
-            logger.exception("No se pudo registrar info en la DB")
-
-        try:
             window = MainWindow(uuid=uuid, hostname=info["hostname"], sistema=info["sistema"])
             window.show()
+
+            # Registrar información de red en segundo plano
+            threading.Thread(target=registrar_info_en_db, daemon=True).start()
 
             logger.info("Aplicación iniciada correctamente")
             sys.exit(app.exec_())
