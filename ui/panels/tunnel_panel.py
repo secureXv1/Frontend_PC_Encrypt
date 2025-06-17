@@ -7,16 +7,18 @@ from PyQt5.QtCore import (
     QVariantAnimation,
     pyqtProperty,
     pyqtSignal,
+    QUrl,
 )
 from PyQt5.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter
 from PyQt5.QtSvg import QSvgRenderer
+from PyQt5.QtMultimedia import QSoundEffect
 import base64, json
 from tunnel_client import TunnelClient
 from db_cliente import obtener_tunel_por_nombre
 from password_utils import verificar_password
 from chat_window import ChatWindow
 import requests
-
+import os
 
 def colored_icon(svg_path, color, size=20):
     renderer = QSvgRenderer(svg_path)
@@ -183,6 +185,14 @@ class TunnelPanel(QWidget):
         right_container.setLayout(right_panel)
         right_container.setFixedWidth(240)
         main_layout.addWidget(right_container)
+
+        self.sound_join = QSoundEffect()
+        self.sound_join.setSource(QUrl.fromLocalFile(os.path.abspath("assets/sounds/join.wav")))
+        self.sound_join.setVolume(0.7)  # Volumen opcional entre 0.0 y 1.0
+
+        self.sound_leave = QSoundEffect()
+        self.sound_leave.setSource(QUrl.fromLocalFile(os.path.abspath("assets/sounds/leave.wav")))
+        self.sound_leave.setVolume(0.7)
 
         self.actualizar_lista_tuneles()
 
@@ -687,6 +697,36 @@ class TunnelPanel(QWidget):
 
     def _actualizar_participantes_periodicamente(self):
         tid = self.current_tunnel_id()
-        if tid:
-            self.fetch_participants(tid)
-            self.update_side_lists(tid)
+        if not tid:
+            return
+
+        old_set = set()
+        for u in self.participants.get(tid, []):
+            if isinstance(u, dict):
+                old_set.update(u.get("aliases", []))
+            else:
+                old_set.add(str(u))
+
+        self.fetch_participants(tid)
+
+        new_set = set()
+        for u in self.participants.get(tid, []):
+            if isinstance(u, dict):
+                new_set.update(u.get("aliases", []))
+            else:
+                new_set.add(str(u))
+
+        # Detectar cambios
+        nuevos = new_set - old_set
+        salientes = old_set - new_set
+
+        if nuevos:
+            print("🔔 Conectado:", nuevos)
+            self.sound_join.play()
+
+        if salientes:
+            print("🔕 Desconectado:", salientes)
+            self.sound_leave.play()
+
+        self.update_side_lists(tid)
+
