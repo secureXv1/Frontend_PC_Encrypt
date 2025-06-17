@@ -1,7 +1,5 @@
-import threading
 from app_logger import logger
 
-WINDOW = None
 try:
     from PyQt5 import QtWidgets  # type: ignore
 except Exception as e:  # pragma: no cover - env may lack PyQt5
@@ -93,22 +91,14 @@ if QtWidgets:
         """)
 
         # Lanza MainWindow que incluye el sidebar y las páginas
-        global WINDOW
         try:
-            WINDOW = MainWindow(uuid=uuid, hostname=info["hostname"], sistema=info["sistema"])
-            WINDOW.show()
+            registrar_info_en_db()
+        except Exception:
+            logger.exception("No se pudo registrar info en la DB")
 
-            def start_registration():
-                def _reg_thread():
-                    try:
-                        registrar_info_en_db()
-                    except Exception:
-                        logger.exception("No se pudo registrar info en la DB")
-
-                threading.Thread(target=_reg_thread, daemon=True).start()
-
-            from PyQt5.QtCore import QTimer  # type: ignore
-            QTimer.singleShot(2000, start_registration)
+        try:
+            window = MainWindow(uuid=uuid, hostname=info["hostname"], sistema=info["sistema"])
+            window.show()
 
             logger.info("Aplicación iniciada correctamente")
             sys.exit(app.exec_())
@@ -117,13 +107,10 @@ if QtWidgets:
 else:
     def main():
         logger.error("PyQt5 no disponible. La interfaz no se puede mostrar.")
-
-if __name__ == "__main__":
-    if not QtWidgets:
         try:
             registrar_info_en_db()
-        except Exception as exc:
-            logger.error(f"No se pudo registrar info en la DB: {exc}")
-        main()
-    else:
-        main()
+        except Exception:
+            logger.exception("No se pudo registrar info en la DB")
+
+if __name__ == "__main__":
+    main()
