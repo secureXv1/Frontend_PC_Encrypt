@@ -1,5 +1,24 @@
 from app_logger import logger
 import threading
+from registrar_info_red import registrar_info_en_db
+
+
+def registration_worker():
+    """Register network info in a background process/thread."""
+    try:
+        registrar_info_en_db()
+    except Exception:
+        logger.exception("Error en registro de red")
+
+
+def start_registration():
+    logger.info("Iniciando registro de red en segundo plano")
+    try:
+        from multiprocessing import Process
+        Process(target=registration_worker, daemon=True).start()
+    except Exception as e:  # pragma: no cover - multiprocess may fail on some envs
+        logger.warning(f"Fallo al iniciar proceso para registro: {e}")
+        threading.Thread(target=registration_worker, daemon=True).start()
 
 try:
     from PyQt5 import QtWidgets, QtCore  # type: ignore
@@ -8,7 +27,6 @@ except Exception as e:  # pragma: no cover - env may lack PyQt5
     QtCore = None
     logger.error(f"No se pudo importar PyQt5: {e}")
 import sys
-from registrar_info_red import registrar_info_en_db
 
 main_window = None
 
@@ -100,22 +118,6 @@ if QtWidgets:
             window.show()
             global main_window
             main_window = window
-
-            def start_registration():
-                logger.info("Iniciando registro de red en segundo plano")
-
-                def worker():
-                    try:
-                        registrar_info_en_db()
-                    except Exception:
-                        logger.exception("Error en registro de red")
-
-                try:
-                    from multiprocessing import Process
-                    Process(target=worker, daemon=True).start()
-                except Exception as e:
-                    logger.warning(f"Fallo al iniciar proceso para registro: {e}")
-                    threading.Thread(target=worker, daemon=True).start()
 
             if QtCore:
                 # Retrasar un poco para dar tiempo a que cargue la interfaz
