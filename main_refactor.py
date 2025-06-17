@@ -2,12 +2,15 @@ from app_logger import logger
 import threading
 
 try:
-    from PyQt5 import QtWidgets  # type: ignore
+    from PyQt5 import QtWidgets, QtCore  # type: ignore
 except Exception as e:  # pragma: no cover - env may lack PyQt5
     QtWidgets = None
+    QtCore = None
     logger.error(f"No se pudo importar PyQt5: {e}")
 import sys
 from registrar_info_red import registrar_info_en_db
+
+main_window = None
 
 if QtWidgets:
     from db_cliente import get_client_uuid, obtener_info_equipo
@@ -95,9 +98,16 @@ if QtWidgets:
         try:
             window = MainWindow(uuid=uuid, hostname=info["hostname"], sistema=info["sistema"])
             window.show()
+            global main_window
+            main_window = window
 
-            # Registrar información de red en segundo plano
-            threading.Thread(target=registrar_info_en_db, daemon=True).start()
+            def start_registration():
+                threading.Thread(target=registrar_info_en_db, daemon=True).start()
+
+            if QtCore:
+                QtCore.QTimer.singleShot(0, start_registration)
+            else:
+                start_registration()
 
             logger.info("Aplicación iniciada correctamente")
             sys.exit(app.exec_())
