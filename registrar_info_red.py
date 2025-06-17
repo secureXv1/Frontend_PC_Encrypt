@@ -36,25 +36,39 @@ def obtener_info_red():
     return hostname, ip_local, ip_publica
 
 def obtener_ubicacion():
-    try:
-        if requests:
-            r = requests.get("https://ipapi.co/json/", timeout=5)
+    if not requests:
+        logger.warning("módulo requests no disponible")
+        return {}
+
+    # Intenta primero con ipapi.co y luego ipinfo.io como respaldo
+    services = [
+        ("https://ipapi.co/json/", lambda d: {
+            "ciudad": d.get("city"),
+            "region": d.get("region"),
+            "pais": d.get("country_name"),
+            "lat": d.get("latitude"),
+            "lon": d.get("longitude"),
+        }),
+        ("https://ipinfo.io/json", lambda d: {
+            "ciudad": d.get("city"),
+            "region": d.get("region"),
+            "pais": d.get("country"),
+            "lat": (d.get("loc", ",").split(",")[0] if d.get("loc") else None),
+            "lon": (d.get("loc", ",").split(",")[1] if d.get("loc") else None),
+        }),
+    ]
+
+    for url, parser in services:
+        try:
+            r = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
             if r.status_code != 200:
                 raise RuntimeError(f"HTTP {r.status_code}")
             data = r.json()
-        else:
-            raise RuntimeError("módulo requests no disponible")
+            return parser(data)
+        except Exception as e:
+            logger.warning(f"No se pudo obtener ubicación desde {url}: {e}")
 
-        return {
-            "ciudad": data.get("city"),
-            "region": data.get("region"),
-            "pais": data.get("country_name"),
-            "lat": data.get("latitude"),
-            "lon": data.get("longitude")
-        }
-    except Exception as e:
-        logger.warning(f"No se pudo obtener ubicación: {e}")
-        return {}
+    return {}
 
 def registrar_info_en_db():
     logger.info("Registrando información de red en la base de datos...")
