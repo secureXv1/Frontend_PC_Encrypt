@@ -1,12 +1,17 @@
 import socket
-import requests
+from app_logger import logger
+try:
+    import requests
+except Exception as e:  # pragma: no cover - env may lack requests
+    requests = None
+    logger.warning(f"No se pudo importar requests: {e}")
 import time
 from db_cliente import get_client_uuid, get_connection  # Usa tu conexión existente
 
 def obtener_info_red():
-    print("🔍 Obteniendo hostname...")
+    logger.info("Obteniendo hostname...")
     hostname = socket.gethostname()
-    print("✅ Hostname:", hostname)
+    logger.info(f"Hostname: {hostname}")
     ip_local = "127.0.0.1"
     ip_publica = "No disponible"
 
@@ -17,57 +22,93 @@ def obtener_info_red():
         ip_local = s.getsockname()[0]
         s.close()
     except Exception as e:
-        print("⚠️ No se pudo obtener IP local:", e)
+        logger.warning(f"No se pudo obtener IP local: {e}")
 
     # ☁️ Obtener IP pública por internet
     try:
-        ip_publica = requests.get("https://api.ipify.org").text
+        if requests:
+            ip_publica = requests.get("https://api.ipify.org", timeout=5).text
+        else:
+            raise RuntimeError("módulo requests no disponible")
     except Exception as e:
-        print("⚠️ No se pudo obtener IP pública:", e)
+        logger.warning(f"No se pudo obtener IP pública: {e}")
 
     return hostname, ip_local, ip_publica
 
 def obtener_ubicacion():
-    try:
-        r = requests.get("https://ipapi.co/json/")
-        data = r.json()
-        return {
-            "ciudad": data.get("city"),
-            "region": data.get("region"),
-            "pais": data.get("country_name"),
-            "lat": data.get("latitude"),
-            "lon": data.get("longitude")
-        }
-    except:
+    if not requests:
+        logger.warning("módulo requests no disponible")
         return {}
 
+    # Intenta primero con ipapi.co y luego ipinfo.io como respaldo
+    services = [
+        ("https://ipapi.co/json/", lambda d: {
+            "ciudad": d.get("city"),
+            "region": d.get("region"),
+            "pais": d.get("country_name"),
+            "lat": d.get("latitude"),
+            "lon": d.get("longitude"),
+        }),
+        ("https://ipinfo.io/json", lambda d: {
+            "ciudad": d.get("city"),
+            "region": d.get("region"),
+            "pais": d.get("country"),
+            "lat": (d.get("loc", ",").split(",")[0] if d.get("loc") else None),
+            "lon": (d.get("loc", ",").split(",")[1] if d.get("loc") else None),
+        }),
+    ]
+
+    for url, parser in services:
+        try:
+            r = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+            if r.status_code != 200:
+                raise RuntimeError(f"HTTP {r.status_code}")
+            data = r.json()
+            return parser(data)
+        except Exception as e:
+            logger.warning(f"No se pudo obtener ubicación desde {url}: {e}")
+
+    return {}
+
 def registrar_info_en_db():
+    logger.info("Registrando información de red en la base de datos...")
     uuid = get_client_uuid()
     hostname, ip_local, ip_publica = obtener_info_red()
     ubicacion = obtener_ubicacion()
 
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO client_info (
-            uuid, hostname, ip_local, ip_publica,
-            ciudad, region, pais, latitud, longitud, registrado_en
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (
-        uuid,
-        hostname,
-        ip_local,
-        ip_publica,
-        ubicacion.get("ciudad"),
-        ubicacion.get("region"),
-        ubicacion.get("pais"),
-        ubicacion.get("lat"),
-        ubicacion.get("lon"),
-        int(time.time() * 1000)
-    ))
-    conn.commit()
-    conn.close()
-    print("📍 Información de red y ubicación registrada.")
+    try:
+        logger.info("Conectando a la base de datos...")
+        conn = get_connection()
+        logger.info("Conexión establecida, insertando registro...")
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO client_info (
+                uuid, hostname, ip_local, ip_publica,
+                ciudad, region, pais, latitud, longitud, registrado_en
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                uuid,
+                hostname,
+                ip_local,
+                ip_publica,
+                ubicacion.get("ciudad"),
+                ubicacion.get("region"),
+                ubicacion.get("pais"),
+                ubicacion.get("lat"),
+                ubicacion.get("lon"),
+                int(time.time() * 1000),
+            ),
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("Información de red y ubicación registrada.")
+    except Exception as e:
+        logger.error(
+            f"Error registrando info de red en la DB: {e}", exc_info=True
+        )
 
 def enviar_info_al_backend():
     uuid = get_client_uuid()
@@ -87,7 +128,9 @@ def enviar_info_al_backend():
     }
 
     try:
-        r = requests.post("http://localhost:8000/api/registrar_info_red", json=payload)
-        print("📡 Enviado al backend:", r.status_code, r.text)
+        if not requests:
+            raise RuntimeError("módulo requests no disponible")
+        r = requests.post("http://localhost:8000/api/registrar_info_red", json=payload, timeout=5)
+        logger.info(f"Enviado al backend: {r.status_code} {r.text}")
     except Exception as e:
-        print("❌ Error enviando info al backend:", e)
+        logger.error(f"Error enviando info al backend: {e}")

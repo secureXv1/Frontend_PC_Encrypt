@@ -1,16 +1,29 @@
-import mysql.connector
+try:
+    import mysql.connector
+except Exception as e:  # pragma: no cover - env may lack MySQL
+    mysql = None
+    from app_logger import logger
+    logger.warning(f"No se pudo importar mysql.connector: {e}")
 import os
-import requests
+try:
+    import requests
+except Exception as e:  # pragma: no cover - env may lack requests
+    requests = None
+    from app_logger import logger
+    logger.warning(f"No se pudo importar requests: {e}")
 import uuid
 import socket
 import platform
 
 def get_connection():
+    if mysql is None:
+        raise RuntimeError("mysql.connector no disponible")
     return mysql.connector.connect(
         host='symbolsaps.ddns.net',
         user='admin',
         password='Febrero2025*-+',
-        database='securex'
+        database='securex',
+        connection_timeout=5
     )
 
 def crear_tunel(nombre, password_hash):
@@ -46,13 +59,18 @@ def get_client_uuid():
     if not os.path.exists(path):
         new_uuid = str(uuid.uuid4())
         guardar_uuid_localmente(new_uuid)
-        print(f"🆕 UUID generado: {new_uuid}")
+        from app_logger import logger
+        logger.info(f"UUID generado: {new_uuid}")
         return new_uuid
     else:
         with open(path, "r") as f:
             return f.read().strip()
 
 def registrar_cliente(uuid_value, hostname, sistema):
+    if not requests:
+        from app_logger import logger
+        logger.warning("requests no disponible; no se enviará al backend")
+        return
     try:
         response = requests.post(
             "http://symbolsaps.ddns.net:8000/api/registrar_cliente",
@@ -60,12 +78,15 @@ def registrar_cliente(uuid_value, hostname, sistema):
                 "uuid": uuid_value,
                 "hostname": hostname,
                 "sistema": sistema
-            }
+            },
+            timeout=5
         )
         response.raise_for_status()
-        print("✅ Cliente registrado correctamente en el backend.")
+        from app_logger import logger
+        logger.info("Cliente registrado correctamente en el backend.")
     except Exception as e:
-        print(f"❌ Error al registrar cliente en el backend: {e}")
+        from app_logger import logger
+        logger.error(f"Error al registrar cliente en el backend: {e}")
 
 def registrar_alias_cliente(uuid_value, tunnel_id, alias):
     payload = {
@@ -73,12 +94,22 @@ def registrar_alias_cliente(uuid_value, tunnel_id, alias):
         "tunnel_id": tunnel_id,
         "alias": alias
     }
+    if not requests:
+        from app_logger import logger
+        logger.warning("requests no disponible; no se enviará alias al backend")
+        return
     try:
-        response = requests.post("http://symbolsaps.ddns.net:8000/api/registrar_alias", json=payload)
+        response = requests.post(
+            "http://symbolsaps.ddns.net:8000/api/registrar_alias",
+            json=payload,
+            timeout=5
+        )
         response.raise_for_status()
-        print("✅ Alias registrado correctamente")
+        from app_logger import logger
+        logger.info("Alias registrado correctamente")
     except Exception as e:
-        print("❌ Error al registrar alias:", e)
+        from app_logger import logger
+        logger.error(f"Error al registrar alias: {e}")
 
 def obtener_info_equipo():
     return {
