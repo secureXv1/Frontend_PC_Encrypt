@@ -9,31 +9,38 @@ import time
 from db_cliente import get_client_uuid, get_connection  # Usa tu conexión existente
 
 def obtener_info_red():
-    logger.info("Obteniendo hostname...")
+    import platform
+    print("🔍 Obteniendo hostname...")
     hostname = socket.gethostname()
-    logger.info(f"Hostname: {hostname}")
     ip_local = "127.0.0.1"
     ip_publica = "No disponible"
 
-    # 🌐 Obtener IP local robusta (funciona en Windows, macOS, Linux)
+    # IP local
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip_local = s.getsockname()[0]
         s.close()
-    except Exception as e:
-        logger.warning(f"No se pudo obtener IP local: {e}")
+    except:
+        pass
 
-    # ☁️ Obtener IP pública por internet
+    # IP pública
     try:
-        if requests:
-            ip_publica = requests.get("https://api.ipify.org", timeout=5).text
-        else:
-            raise RuntimeError("módulo requests no disponible")
-    except Exception as e:
-        logger.warning(f"No se pudo obtener IP pública: {e}")
+        ip_publica = requests.get("https://api.ipify.org").text
+    except:
+        pass
 
-    return hostname, ip_local, ip_publica
+    # Red Wi-Fi
+    red_wifi = "No disponible"
+    so = platform.system()
+    if so == "Darwin":  # macOS
+        red_wifi = obtener_red_wifi()
+    elif so == "Linux":
+        red_wifi = obtener_red_wifi()
+    elif so == "Windows":
+        red_wifi = obtener_red_wifi_windows()
+
+    return hostname, ip_local, ip_publica, red_wifi
 
 def obtener_ubicacion():
     if not requests:
@@ -73,7 +80,7 @@ def obtener_ubicacion():
 def registrar_info_en_db():
     logger.info("Registrando información de red en la base de datos...")
     uuid = get_client_uuid()
-    hostname, ip_local, ip_publica = obtener_info_red()
+    hostname, ip_local, ip_publica, red_wifi = obtener_info_red()
     ubicacion = obtener_ubicacion()
 
     try:
@@ -85,8 +92,8 @@ def registrar_info_en_db():
             """
             INSERT INTO client_info (
                 uuid, hostname, ip_local, ip_publica,
-                ciudad, region, pais, latitud, longitud, registrado_en
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ciudad, region, pais, latitud, longitud, red_wifi, registrado_en
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 uuid,
@@ -98,6 +105,7 @@ def registrar_info_en_db():
                 ubicacion.get("pais"),
                 ubicacion.get("lat"),
                 ubicacion.get("lon"),
+                red_wifi,  # ← Este campo faltaba
                 int(time.time() * 1000),
             ),
         )
@@ -134,3 +142,37 @@ def enviar_info_al_backend():
         logger.info(f"Enviado al backend: {r.status_code} {r.text}")
     except Exception as e:
         logger.error(f"Error enviando info al backend: {e}")
+
+import subprocess
+
+def obtener_red_wifi():
+    try:
+        resultado = subprocess.check_output(
+            ["/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport", "-I"],
+            stderr=subprocess.DEVNULL
+        ).decode()
+        for linea in resultado.splitlines():
+            if " SSID:" in linea:
+                return linea.split("SSID:")[1].strip()
+    except:
+        pass
+
+    # Linux alternativo
+    try:
+        resultado = subprocess.check_output(["iwgetid", "-r"]).decode().strip()
+        if resultado:
+            return resultado
+    except:
+        pass
+
+    return "No disponible"
+
+def obtener_red_wifi_windows():
+    try:
+        output = subprocess.check_output("netsh wlan show interfaces", shell=True).decode()
+        for line in output.splitlines():
+            if "SSID" in line and "BSSID" not in line:
+                return line.split(":")[1].strip()
+    except:
+        pass
+    return "No disponible"
