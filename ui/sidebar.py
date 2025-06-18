@@ -42,7 +42,7 @@ class Sidebar(QWidget):
                 padding: 12px;
             }
             Sidebar QPushButton:hover {
-                background-color: #2c2c2c;
+                background-color: #2c2c2c; 
             }
             Sidebar QPushButton:checked {
                 background-color: #3a3a3a;
@@ -58,7 +58,6 @@ class Sidebar(QWidget):
             ("assets/icons/home.svg", "Inicio"),
             ("assets/icons/tunnel.svg", "Túneles"),
             ("assets/icons/lock.svg", "Cifrado"),
-            ("assets/icons/settings.svg", "Ajustes"),
         ]
 
         for i, (icon_path, tooltip) in enumerate(self.icons):
@@ -74,19 +73,44 @@ class Sidebar(QWidget):
         layout.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
         # Botón de tema abajo
-        theme_btn = QPushButton()
-        theme_btn.setIcon(colored_icon("assets/icons/settings.svg", "#FFFFFF"))
-        theme_btn.setIconSize(QSize(28, 28))
-        theme_btn.setToolTip("Cambiar tema")
-        layout.addWidget(theme_btn)
+        self.theme_btn = QPushButton()
+        self.theme_btn.setCheckable(True)  
+        self.theme_btn.setIcon(colored_icon("assets/icons/settings.svg", "#FFFFFF"))
+        self.theme_btn.setIconSize(QSize(28, 28))
+        self.theme_btn.setToolTip("Ajustes")
+        self.theme_btn.clicked.connect(lambda: self.select(3))  # 👉 activa vista 3 manualmente
+        layout.addWidget(self.theme_btn)
 
         self.select(0)
 
     def select(self, index):
         for i, btn in enumerate(self.buttons):
             icon_path, _ = self.icons[i]
-            # 🟦 Color celeste si está seleccionado, blanco si no
             color = "#00BCD4" if i == index else "#FFFFFF"
             btn.setIcon(colored_icon(icon_path, color))
             btn.setChecked(i == index)
+
+        # 🔽 Visual para el botón de ajustes (index 3)
+        if index == 3:
+            # Deselecciona todos los botones superiores
+            for btn in self.buttons:
+                btn.setChecked(False)
+            # Aplica estilo activo al botón de ajustes
+            self.theme_btn.setChecked(True)
+            self.theme_btn.setIcon(colored_icon("assets/icons/settings.svg", "#00BCD4"))
+            self.theme_btn.setStyleSheet("""
+                background-color: #3a3a3a;
+                border-left: 4px solid #00BCD4;
+                padding: 12px;
+            """)
+        else:
+            self.theme_btn.setChecked(False)
+            self.theme_btn.setIcon(colored_icon("assets/icons/settings.svg", "#FFFFFF"))
+            self.theme_btn.setStyleSheet("""
+                background-color: transparent;
+                border: none;
+                padding: 12px;
+            """)
+
         self.on_select_callback(index)
+
