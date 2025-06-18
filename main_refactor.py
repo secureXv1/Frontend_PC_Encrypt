@@ -41,9 +41,8 @@ if QtWidgets:
     class MainWindow(QtWidgets.QMainWindow):
         def __init__(self, uuid, hostname, sistema):
             super().__init__()
-            self.resize(1600, 1000)
+            self.setGeometry(50, 50, 1600, 1000)  # x, y, ancho, alto
             self.setWindowTitle("Encrypt")
-            self.setGeometry(100, 100, 1100, 650)
 
             main_widget = QtWidgets.QWidget()
             self.setCentralWidget(main_widget)

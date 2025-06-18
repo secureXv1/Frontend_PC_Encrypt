@@ -4,9 +4,11 @@ import json
 import requests
 import time
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QFileDialog, QHBoxLayout, QScrollArea, QSpacerItem, QSizePolicy
+    QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QFileDialog,
+    QHBoxLayout, QScrollArea, QSpacerItem, QSizePolicy, QLabel
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap, QPainter
 from db_cliente import get_client_uuid
 from message_bubble import MessageBubble
 
@@ -25,16 +27,22 @@ class ChatWindow(QWidget):
 
         layout = QVBoxLayout()
 
+        # Fondo con imagen
+        self.background_label = QLabel(self)
+        self.background_label.setGeometry(0, 0, self.width(), self.height())
+        self.background_label.lower()
+        self.update_background_image()
+
         # ÁREA DE MENSAJES (reemplazo moderno)
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setStyleSheet("""
             QScrollArea {
-                background-color: #1E1E1E;
+                background-color: rgba(30, 30, 30, 200); /* más claro */
                 border: none;
             }
             QWidget {
-                background-color: #000;
+                background-color: rgba(0, 0, 0, 50); /* muy transparente */
             }
         """)
 
@@ -220,3 +228,51 @@ class ChatWindow(QWidget):
             self.mostrar_mensaje(f"⚠️ Error al descargar archivo: {e}", "Sistema", True)
 
 
+    def update_background_image(self):
+    
+        # 👇 Sube tres niveles si estás dentro de /PGP/pgp/ui/ChatWindow.py
+        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        fondo_path = os.path.join(PROJECT_ROOT, "PGP", "pgp","assets", "images", "cyber-security-3400657_1280.jpg")
+
+        fondo_pixmap = QPixmap(fondo_path)
+        if fondo_pixmap.isNull():
+            print(f"❌ Imagen no encontrada: {fondo_path}")
+            return
+
+        target_size = self.size()
+
+        scaled_pixmap = fondo_pixmap.scaled(
+            target_size,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation
+        )
+
+        # Centrar la imagen dentro del widget
+        x = (target_size.width() - scaled_pixmap.width()) // 2
+        y = (target_size.height() - scaled_pixmap.height()) // 2
+
+        transparent_pixmap = QPixmap(target_size)
+        transparent_pixmap.fill(Qt.transparent)
+
+        painter = QPainter(transparent_pixmap)
+        painter.setOpacity(0.25)  # puedes reducir aún más si deseas
+        painter.drawPixmap(x, y, scaled_pixmap)
+        painter.end()
+
+        self.background_label.setPixmap(transparent_pixmap)
+        self.background_label.setGeometry(0, 0, target_size.width(), target_size.height())
+
+        transparent_pixmap = QPixmap(scaled_pixmap.size())
+        transparent_pixmap.fill(Qt.transparent)
+
+        painter = QPainter(transparent_pixmap)
+        painter.setOpacity(0.25)
+        painter.drawPixmap(0, 0, scaled_pixmap)
+        painter.end()
+
+        self.background_label.setPixmap(transparent_pixmap)
+        self.background_label.setGeometry(0, 0, self.width(), self.height())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_background_image()
