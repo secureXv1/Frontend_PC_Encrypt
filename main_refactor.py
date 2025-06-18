@@ -1,7 +1,7 @@
 from app_logger import logger
 import threading
 from registrar_info_red import registrar_info_en_db
-
+from db_cliente import get_client_uuid, marcar_cliente_desconectado, marcar_cliente_en_linea
 
 def registration_worker():
     """Register network info in a background process/thread."""
@@ -62,6 +62,12 @@ if QtWidgets:
         def cambiar_pagina(self, index):
             self.pages.setCurrentIndex(index)
 
+        def closeEvent(self, event):
+            uuid = get_client_uuid()
+            marcar_cliente_desconectado(uuid)
+            print(f"🛑 Cliente {uuid} marcado como desconectado.")
+            event.accept()
+
     def main():
         logger.info("Iniciando interfaz gráfica...")
         try:
@@ -72,6 +78,7 @@ if QtWidgets:
 
         # Datos del cliente
         uuid = get_client_uuid()
+        marcar_cliente_en_linea(uuid)
         info = obtener_info_equipo()
 
         # Estilos

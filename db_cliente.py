@@ -116,3 +116,35 @@ def obtener_info_equipo():
         "hostname": socket.gethostname(),
         "sistema": platform.system() + " " + platform.release()
     }
+
+def marcar_cliente_desconectado(uuid_value):
+    if not requests:
+        from app_logger import logger
+        logger.warning("requests no disponible; no se marcará desconectado")
+        return
+    try:
+        response = requests.post(
+            "http://symbolsaps.ddns.net:8000/api/marcar_desconectado",
+            json={"uuid": uuid_value},
+            timeout=5
+        )
+        response.raise_for_status()
+        from app_logger import logger
+        logger.info(f"Cliente {uuid_value} marcado como desconectado.")
+    except Exception as e:
+        from app_logger import logger
+        logger.error(f"Error al marcar cliente como desconectado: {e}")
+
+def marcar_cliente_en_linea(uuid_value):
+    try:
+        response = requests.post(
+            "http://symbolsaps.ddns.net:8000/api/marcar_cliente_en_linea",
+            json={"uuid": uuid_value},
+            timeout=5
+        )
+        response.raise_for_status()
+        from app_logger import logger
+        logger.info("Cliente marcado como en línea.")
+    except Exception as e:
+        from app_logger import logger
+        logger.error(f"Error al marcar cliente en línea: {e}")
