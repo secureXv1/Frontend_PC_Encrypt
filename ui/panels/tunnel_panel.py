@@ -386,6 +386,10 @@ class TunnelPanel(QWidget):
             if widget:
                 widget.setParent(None)
 
+    def abrir_tunel(self, tunel):
+        """Compatibilidad con versiones anteriores."""
+        self.unirse_a_tunel(tunel)
+
     def unirse_a_tunel(self, tunel):
         from PyQt5.QtWidgets import QMessageBox
         from PyQt5.QtCore import Qt
