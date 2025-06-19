@@ -156,6 +156,24 @@ class TunnelPanel(QWidget):
 
         self.tunnel_cards = {}
         self.tuneles_list = QListWidget()
+        self.tuneles_list.setStyleSheet("""
+            QListWidget {
+                background-color: #2b2b2b;
+                color: white;
+                border: none;
+                padding: 10px;
+            }
+            QListWidget::item {
+                padding: 12px 10px;
+                border-bottom: 1px solid #444;
+                font-size: 14px;
+            }
+            QListWidget::item:selected {
+                background-color: #444;
+                color: #00bfff;
+            }
+        """)
+        self.tuneles_list.setFixedWidth(300)
         self.tuneles = []
 
         # Conectar la señal que procesa mensajes entrantes en el hilo de Qt
@@ -196,6 +214,7 @@ class TunnelPanel(QWidget):
         self.scroll_widget = QWidget()
         self.scroll_layout = QVBoxLayout(self.scroll_widget)
         self.scroll_layout.setAlignment(Qt.AlignTop)
+        self.scroll_layout.addWidget(self.tuneles_list)
         self.scroll_area.setWidget(self.scroll_widget)
         self.left_panel.addWidget(self.scroll_area)
 
