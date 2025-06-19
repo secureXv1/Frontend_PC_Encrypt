@@ -345,15 +345,17 @@ class TunnelPanel(QWidget):
             self.tuneles_list.addItem(titulo_mis)
 
             for t in mis_tuneles:
+                conectado = t.get('id') in self.conexiones_tuneles
                 card = TunnelCard(
                     nombre=t['name'],
                     on_click=lambda t=t: self.abrir_tunel(t),
-                    conectado=True
+                    conectado=conectado
                 )
                 item = QListWidgetItem()
                 item.setSizeHint(card.sizeHint())
                 self.tuneles_list.addItem(item)
                 self.tuneles_list.setItemWidget(item, card)
+                self.tunnel_cards[t['id']] = card
                 print(f"➕ Agregando túnel propio (visual): {t['name']}")
 
             # 🛰 Encabezado: CONEXIONES RECIENTES
@@ -364,7 +366,7 @@ class TunnelPanel(QWidget):
             self.tuneles_list.addItem(titulo_recientes)
 
             for t in recientes:
-                conectado = True  # según lógica real
+                conectado = t.get('id') in self.conexiones_tuneles
                 card = TunnelCard(
                     nombre=t['name'],
                     on_click=lambda t=t: self.abrir_tunel(t),
@@ -374,6 +376,7 @@ class TunnelPanel(QWidget):
                 item.setSizeHint(card.sizeHint())
                 self.tuneles_list.addItem(item)
                 self.tuneles_list.setItemWidget(item, card)
+                self.tunnel_cards[t['id']] = card
                 print(f"➕ Agregando túnel reciente (visual): {t['name']}")
 
         except Exception as e:
@@ -527,6 +530,10 @@ class TunnelPanel(QWidget):
                 "tab": tab,
                 "alias": alias,
             }
+
+            card = self.tunnel_cards.get(tunel["id"])
+            if card:
+                card.set_conectado(True)
 
             self.fetch_participants(tunel["id"])
             self.fetch_files(tunel["id"])
@@ -751,6 +758,10 @@ class TunnelPanel(QWidget):
                 "tab": tab,
                 "alias": alias,
             }
+
+            card = self.tunnel_cards.get(tunel["id"])
+            if card:
+                card.set_conectado(True)
 
             self.fetch_participants(tunel["id"])
             self.fetch_files(tunel["id"])
