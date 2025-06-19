@@ -295,6 +295,19 @@ class TunnelPanel(QWidget):
 
     # FUNCIONES!!!!
 
+    def _agregar_titulo(self, texto):
+        """Agrega un encabezado no seleccionable en la lista de túneles."""
+        item = QListWidgetItem()
+        label = QLabel(texto)
+        label.setStyleSheet(
+            "color: #999; font-weight: bold; padding: 4px 2px; background: transparent;"
+        )
+        label.setFixedHeight(24)
+        item.setFlags(Qt.NoItemFlags)
+        item.setSizeHint(label.sizeHint())
+        self.tuneles_list.addItem(item)
+        self.tuneles_list.setItemWidget(item, label)
+
     def crear_tunel_desde_ui(self):
         import requests
         nombre = self.input_name.text().strip().upper()
@@ -340,11 +353,7 @@ class TunnelPanel(QWidget):
             print(f"📡 Túneles recientes: {len(recientes)}")
 
             # 🧱 Encabezado: MIS TÚNELES
-            titulo_mis = QListWidgetItem("🔐 MIS TÚNELES")
-            titulo_mis.setFlags(Qt.NoItemFlags)
-            titulo_mis.setForeground(QColor("#999999"))
-            titulo_mis.setFont(QFont("Arial", 11, QFont.Bold))
-            self.tuneles_list.addItem(titulo_mis)
+            self._agregar_titulo("🔐 MIS TÚNELES")
 
             for t in mis_tuneles:
                 conectado = t.get('id') in self.conexiones_tuneles
@@ -361,11 +370,7 @@ class TunnelPanel(QWidget):
                 print(f"➕ Agregando túnel propio (visual): {t['name']}")
 
             # 🛰 Encabezado: CONEXIONES RECIENTES
-            titulo_recientes = QListWidgetItem("📡 CONEXIONES RECIENTES")
-            titulo_recientes.setFlags(Qt.NoItemFlags)
-            titulo_recientes.setForeground(QColor("#999999"))
-            titulo_recientes.setFont(QFont("Arial", 11, QFont.Bold))
-            self.tuneles_list.addItem(titulo_recientes)
+            self._agregar_titulo("📡 CONEXIONES RECIENTES")
 
             for t in recientes:
                 conectado = t.get('id') in self.conexiones_tuneles
