@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import ( QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit, QHBoxLayout,
+from PyQt5.QtWidgets import ( QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit, QHBoxLayout,QTabWidget,
 QFileDialog, QMessageBox, QScrollArea, QFrame, QSpacerItem, QSizePolicy, QDialog, QFormLayout, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import (
     Qt,
@@ -20,6 +20,7 @@ from chat_window import ChatWindow
 import requests
 import os
 from datetime import datetime
+
 
 def formatear_timestamp(timestamp_ms):
     try:
@@ -65,7 +66,7 @@ class TunnelCard(QFrame):
 
         # Contenido real de la tarjeta
         wrapper = QFrame()
-        wrapper.setStyleSheet("background-color: #1f1f1f;")
+        wrapper.setStyleSheet("background-color: #303030;")
         wrapper_layout = QVBoxLayout(wrapper)
         wrapper_layout.setContentsMargins(8, 4, 8, 4)
         wrapper_layout.setSpacing(2)
@@ -157,24 +158,6 @@ class TunnelPanel(QWidget):
         # Mapea ID de túnel -> lista de tarjetas asociadas en la interfaz
         self.tunnel_cards = {}
         self.tuneles_list = QListWidget()
-        self.tuneles_list.setStyleSheet("""
-            QListWidget {
-                background-color: #2b2b2b;
-                color: white;
-                border: none;
-                padding: 10px;
-            }
-            QListWidget::item {
-                padding: 12px 10px;
-                border-bottom: 1px solid #444;
-                font-size: 14px;
-            }
-            QListWidget::item:selected {
-                background-color: #444;
-                color: #00bfff;
-            }
-        """)
-        self.tuneles_list.setFixedWidth(300)
         self.tuneles = []
 
         # Conectar la señal que procesa mensajes entrantes en el hilo de Qt
@@ -225,7 +208,7 @@ class TunnelPanel(QWidget):
         main_layout.addWidget(left_container)
 
         # ==== PANEL CENTRAL (Chat) ====
-        from PyQt5.QtWidgets import QTabWidget
+        
 
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
@@ -339,7 +322,13 @@ class TunnelPanel(QWidget):
         return datetime.fromtimestamp(ts / 1000).strftime("%d %b %Y %H:%M")
 
     def actualizar_lista_tuneles(self):
-        self.tuneles_list.clear()
+        # Limpiar tarjetas previas
+        while self.scroll_layout.count():
+            item = self.scroll_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
         self.tunnel_cards.clear()
         uuid_actual = get_client_uuid()
         print(f"🧠 UUID actual: {uuid_actual}")
@@ -352,8 +341,10 @@ class TunnelPanel(QWidget):
             print(f"🔐 Túneles creados por mí: {len(mis_tuneles)}")
             print(f"📡 Túneles recientes: {len(recientes)}")
 
-            # 🧱 Encabezado: MIS TÚNELES
-            self._agregar_titulo("🔐 MIS TÚNELES")
+            # 🔐 Encabezado: MIS TÚNELES
+            titulo_mis = QLabel("🔐 MIS TÚNELES")
+            titulo_mis.setStyleSheet("color: gray; font-weight: bold; margin: 10px 0 4px 6px;")
+            self.scroll_layout.addWidget(titulo_mis)
 
             for t in mis_tuneles:
                 conectado = t.get('id') in self.conexiones_tuneles
@@ -362,15 +353,16 @@ class TunnelPanel(QWidget):
                     on_click=lambda t=t: self.abrir_tunel(t),
                     conectado=conectado
                 )
-                item = QListWidgetItem()
-                item.setSizeHint(card.sizeHint())
-                self.tuneles_list.addItem(item)
-                self.tuneles_list.setItemWidget(item, card)
+                self.scroll_layout.addWidget(card)
                 self.tunnel_cards.setdefault(t['id'], []).append(card)
                 print(f"➕ Agregando túnel propio (visual): {t['name']}")
 
-            # 🛰 Encabezado: CONEXIONES RECIENTES
-            self._agregar_titulo("📡 CONEXIONES RECIENTES")
+            self.scroll_layout.addSpacing(10)
+
+            # 📡 Encabezado: CONEXIONES RECIENTES
+            titulo_recientes = QLabel("📡 CONEXIONES RECIENTES")
+            titulo_recientes.setStyleSheet("color: gray; font-weight: bold; margin: 12px 0 4px 6px;")
+            self.scroll_layout.addWidget(titulo_recientes)
 
             for t in recientes:
                 conectado = t.get('id') in self.conexiones_tuneles
@@ -379,15 +371,15 @@ class TunnelPanel(QWidget):
                     on_click=lambda t=t: self.abrir_tunel(t),
                     conectado=conectado
                 )
-                item = QListWidgetItem()
-                item.setSizeHint(card.sizeHint())
-                self.tuneles_list.addItem(item)
-                self.tuneles_list.setItemWidget(item, card)
+                self.scroll_layout.addWidget(card)
                 self.tunnel_cards.setdefault(t['id'], []).append(card)
                 print(f"➕ Agregando túnel reciente (visual): {t['name']}")
 
+            self.scroll_layout.addStretch()  # Relleno final opcional
+
         except Exception as e:
             print(f"❌ Error al cargar túneles: {e}")
+
 
 
     def scroll_clear(self):
