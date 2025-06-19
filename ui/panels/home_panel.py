@@ -26,48 +26,50 @@ class HomePanel(QWidget):
         content_layout.setContentsMargins(40, 40, 40, 40)
         content_layout.setSpacing(20)
 
-        # 🟦 Título principal
-        titulo = QLabel("ENCRYPT")
-        titulo.setStyleSheet("""
-            font-size: 26px;
-            font-weight: bold;
-            color: white;
-            background-color: rgba(0,0,0,0);
-            padding: 6px;
-        """)
-        titulo.setAlignment(Qt.AlignCenter)
-        content_layout.addWidget(titulo)
-
-       # 🟨 Subtítulo limpio sin fondo ni padding extra
-        subtitulo = QLabel("La seguridad no es una opción, es una responsabilidad")
-        subtitulo.setStyleSheet("""
-            font-size: 15px;
-            color: #cccccc;
-            background: transparent;
-        """)
-        subtitulo.setAlignment(Qt.AlignCenter)
-        content_layout.addWidget(subtitulo)
+        
 
         # Lista de mensajes como check list
         mensajes = [
-            "🔍 Escaneo del entorno completado",
-            "✅ Identidad del dispositivo verificada",
-            "🔐 Claves de sesión generadas",
-            "🛰️ Conexión cifrada establecida",
-            "🟢 Chat listo para comunicarse",
+            "Seguridad sin compromisos \nTu información permanece protegida en todo momento",
+            "Cifrado de nivel avanzado \nBlindaje total para tus archivos y mensajes",
+            "Túneles privados de comunicación \nSolo quienes deben ver, verán",
+            "Control total de tus datos \nSin intermediarios. Sin rastreo. Sin sorpresas",
+            "Funciona con o sin internet \nTu privacidad no depende de la red",
+            "Diseñada para lo crítico \nIdeal para organizaciones y equipos de seguridad",
+            "Archivos invisibles para ojos no autorizados \nLo oculto, permanece oculto.",
+            "Modo discreto \nInterfaz limpia, sin marcas visibles, sin huellas digitales",
+            "Identidad flexible \nUsa distintos alias según el contexto, sin revelar tu origen",
         ]
 
-        for i, texto in enumerate(mensajes):
-            label = QLabel(texto)
+        for texto in mensajes:
+            partes = texto.split("\n", 1)
+            titulo = partes[0].strip()
+            subtitulo = partes[1].strip() if len(partes) > 1 else ""
+
+            # Extrae el ícono del título (primer caracter + espacio)
+            icono = titulo[:2]
+            texto_titulo = titulo[2:].strip()
+
+            # Usa <div> para controlar espaciado y alineación visual
+            html = f"""
+                <div>
+                    <span>{icono}</span>
+                    <span>{texto_titulo}</span><br>
+                    <span style='display:inline-block; margin-left:20px; font-size:11px; font-weight:normal; color:#cccccc; margin-top:6px;'>{subtitulo}</span>
+                </div>
+            """
+
+            label = QLabel(html)
             label.setStyleSheet("""
                 color: white;
                 font-size: 15px;
-                padding: 4px;
+                padding: 6px;
                 background-color: #1f1f1f;
-                border-left: 4px solid #00cc88;
+                border-left: 4px solid #00BCD4;
                 border-radius: 6px;
             """)
-            label.setGraphicsEffect(None)
+            label.setTextFormat(Qt.RichText)
+            label.setWordWrap(True)
             label.setVisible(False)
             content_layout.addWidget(label)
             self.entradas.append(label)
@@ -101,7 +103,7 @@ class HomePanel(QWidget):
     def load_centered_image(self):
         fondo_path = os.path.join(
             os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
-            "assets", "images", "cyber-security-3400657_1280.jpg"
+            "assets", "images", "BluePost.jpg"
         )
 
         fondo_pixmap = QPixmap(fondo_path)
@@ -133,7 +135,7 @@ class HomePanel(QWidget):
         transparent_pixmap.fill(Qt.transparent)
 
         painter = QPainter(transparent_pixmap)
-        painter.setOpacity(0.35)
+        painter.setOpacity(0.9)
         # Calcular posición centrada
         x = (target_size.width() - scaled_pixmap.width()) // 2
         y = (target_size.height() - scaled_pixmap.height()) // 2

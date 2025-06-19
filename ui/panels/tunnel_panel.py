@@ -9,16 +9,25 @@ from PyQt5.QtCore import (
     pyqtSignal,
     QUrl,
 )
-from PyQt5.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter
+from PyQt5.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter, QFont
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtMultimedia import QSoundEffect
 import base64, json
 from tunnel_client import TunnelClient
-from db_cliente import obtener_tunel_por_nombre
+from db_cliente import obtener_tunel_por_nombre, get_client_uuid, obtener_ultimas_conexiones_por_tunel, obtener_tuneles_desde_backend
 from password_utils import verificar_password
 from chat_window import ChatWindow
 import requests
 import os
+from datetime import datetime
+
+def formatear_timestamp(timestamp_ms):
+    try:
+        dt = datetime.fromtimestamp(timestamp_ms / 1000)
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except:
+        return "Fecha inválida"
+
 
 def colored_icon(svg_path, color, size=20):
     renderer = QSvgRenderer(svg_path)
@@ -36,51 +45,98 @@ def colored_icon(svg_path, color, size=20):
 
 
 class TunnelCard(QFrame):
-    def __init__(self, nombre, on_click):
+    def __init__(self, nombre, on_click, conectado=False):
         super().__init__()
-
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedHeight(50)
 
-        # Layout
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(2)
+        # Layout horizontal: borde izquierdo + contenido
+        outer_layout = QHBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
 
+        # Borde izquierdo como línea visual
+        self.borde = QFrame()
+        self.borde.setFixedWidth(4)
+        self.borde.setStyleSheet(
+            f"background-color: {'#00BCD4' if conectado else '#444'};"
+        )
+        outer_layout.addWidget(self.borde)
+
+        # Contenido real de la tarjeta
+        wrapper = QFrame()
+        wrapper.setStyleSheet("background-color: #1f1f1f;")
+        wrapper_layout = QVBoxLayout(wrapper)
+        wrapper_layout.setContentsMargins(8, 4, 8, 4)
+        wrapper_layout.setSpacing(2)
+
+        # Título e ícono de conexión
+        title_layout = QHBoxLayout()
         self.title = QLabel(nombre)
         self.title.setStyleSheet("font-size: 13px; color: white;")
         self.title.setTextInteractionFlags(Qt.NoTextInteraction)
+        title_layout.addWidget(self.title)
 
+        icon = QLabel("🟢" if conectado else "⚪")
+        icon.setStyleSheet(f"""
+            font-size: 14px;
+            margin-left: 4px;
+            color: {"#00ff00" if conectado else "#888"};
+        """)
+        title_layout.addStretch()
+        title_layout.addWidget(icon)
+
+
+        wrapper_layout.addLayout(title_layout)
+
+        # Subtítulo
         self.subtitle = QLabel("Fecha de creación")
         self.subtitle.setStyleSheet("font-size: 10px; color: gray;")
         self.subtitle.setTextInteractionFlags(Qt.NoTextInteraction)
+        wrapper_layout.addWidget(self.subtitle)
 
-        layout.addWidget(self.title)
-        layout.addWidget(self.subtitle)
+        outer_layout.addWidget(wrapper)
 
-        # Color inicial
-        self.base_color = QColor("#1f1f1f")
-        self.setAutoFillBackground(True)
-        self._update_background(self.base_color)
-
-        # Evento de clic con animación
+        # Animación de fondo al hacer clic
         self.mousePressEvent = lambda event: self._click_animation(on_click)
 
     def _click_animation(self, callback):
-        animation = QVariantAnimation(
-            startValue=QColor("#00BCD4"),  # celeste al hacer clic
-            endValue=self.base_color,
-            duration=200  # en milisegundos
+        anim = QVariantAnimation(
+            startValue=QColor("#00BCD4"),
+            endValue=QColor("#1f1f1f"),
+            duration=200
         )
-        animation.valueChanged.connect(self._update_background)
-        animation.finished.connect(callback)
-        animation.start()
-        self._animation = animation  # evitar GC inmediato
+        anim.valueChanged.connect(self._update_background)
+        anim.finished.connect(callback)
+        anim.start()
+        self._anim = anim
 
     def _update_background(self, color):
-        palette = self.palette()
-        palette.setColor(QPalette.Window, color)
-        self.setPalette(palette)
+        self.setStyleSheet(f"background-color: {color.name()};")
+
+    def set_conectado(self, conectado: bool):
+        # Cambiar el color del borde izquierdo
+        self.borde.setStyleSheet(
+            f"background-color: {'#00BCD4' if conectado else '#444'};"
+        )
+
+        # Buscar el ícono dentro del layout y cambiar su texto y color
+        wrapper = self.layout().itemAt(1).widget()  # index 1 = wrapper (después del borde)
+        if isinstance(wrapper, QFrame):
+            vlayout = wrapper.layout()
+            if vlayout is not None:
+                for i in range(vlayout.count()):
+                    item = vlayout.itemAt(i)
+                    if isinstance(item, QHBoxLayout):  # primera línea: nombre + ícono
+                        for j in range(item.count()):
+                            widget = item.itemAt(j).widget()
+                            if isinstance(widget, QLabel) and widget.text() in ["🟢", "⚪"]:
+                                widget.setText("🟢" if conectado else "⚪")
+                                widget.setStyleSheet(f"""
+                                    font-size: 14px;
+                                    margin-left: 4px;
+                                    color: {"#00ff00" if conectado else "#888"};
+                                """)
 
 class TunnelPanel(QWidget):
     """Panel principal para gestionar y mostrar los túneles."""
@@ -97,6 +153,10 @@ class TunnelPanel(QWidget):
         self.participants = {}
         self.files = {}
         self.cliente = None
+
+        self.tunnel_cards = {}
+        self.tuneles_list = QListWidget()
+        self.tuneles = []
 
         # Conectar la señal que procesa mensajes entrantes en el hilo de Qt
         self.message_received.connect(self._handle_incoming_message)
@@ -167,7 +227,24 @@ class TunnelPanel(QWidget):
         right_panel.addWidget(label_participantes)
 
         self.users_list = QListWidget()
-        self.users_list.setFixedWidth(215)
+        self.users_list.setStyleSheet("""
+            QListWidget {
+                background-color: #2b2b2b;
+                color: white;
+                border: none;
+                padding: 10px;
+            }
+            QListWidget::item {
+                padding: 12px 10px;
+                border-bottom: 1px solid #444;
+                font-size: 14px;
+            }
+            QListWidget::item:selected {
+                background-color: #444;
+                color: #00bfff;
+            }
+        """)
+        self.users_list.setFixedWidth(275)
         right_panel.addWidget(self.users_list)
 
         label_archivos = QLabel("Archivos")
@@ -175,7 +252,7 @@ class TunnelPanel(QWidget):
         right_panel.addWidget(label_archivos)
 
         self.files_list = QListWidget()
-        self.files_list.setFixedWidth(215)
+        self.files_list.setFixedWidth(275)
         self.files_list.setStyleSheet("background-color: #000; color: white;")
         # Descargar el archivo con un solo clic
         self.files_list.itemClicked.connect(self._download_file_from_list)
@@ -183,7 +260,7 @@ class TunnelPanel(QWidget):
 
         right_container = QWidget()
         right_container.setLayout(right_panel)
-        right_container.setFixedWidth(240)
+        right_container.setFixedWidth(300)
         main_layout.addWidget(right_container)
 
         self.sound_join = QSoundEffect()
@@ -200,7 +277,7 @@ class TunnelPanel(QWidget):
 
     def crear_tunel_desde_ui(self):
         import requests
-        nombre = self.input_name.text().strip()
+        nombre = self.input_name.text().strip().upper()
         clave = self.input_password.text().strip()
         if not nombre or not clave:
             QMessageBox.warning(self, "Error", "Nombre y contraseña requeridos")
@@ -223,20 +300,66 @@ class TunnelPanel(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo crear el túnel:\n{e}")
 
+    def formatear_timestamp(ts):
+        if not ts or ts == 0:
+            return "sin conexión"
+        return datetime.fromtimestamp(ts / 1000).strftime("%d %b %Y %H:%M")
+
     def actualizar_lista_tuneles(self):
-        import requests
-        self.scroll_clear()
+        self.tuneles_list.clear()
+        uuid_actual = get_client_uuid()
+        print(f"🧠 UUID actual: {uuid_actual}")
+
         try:
-            response = requests.get("http://symbolsaps.ddns.net:8000/api/tunnels")
-            if response.status_code == 200:
-                tuneles = response.json()
-                for tunel in tuneles:
-                    card = TunnelCard(tunel["name"], lambda t=tunel: self.unirse_a_tunel(t))
-                    self.scroll_layout.addWidget(card)
-            else:
-                raise Exception("No se pudo obtener la lista de túneles")
+            datos = obtener_tuneles_desde_backend(uuid_actual)
+            mis_tuneles = datos.get("mis_tuneles", [])
+            recientes = datos.get("conexiones_recientes", [])
+
+            print(f"🔐 Túneles creados por mí: {len(mis_tuneles)}")
+            print(f"📡 Túneles recientes: {len(recientes)}")
+
+            # 🧱 Encabezado: MIS TÚNELES
+            titulo_mis = QListWidgetItem("🔐 MIS TÚNELES")
+            titulo_mis.setFlags(Qt.NoItemFlags)
+            titulo_mis.setForeground(QColor("#999999"))
+            titulo_mis.setFont(QFont("Arial", 11, QFont.Bold))
+            self.tuneles_list.addItem(titulo_mis)
+
+            for t in mis_tuneles:
+                card = TunnelCard(
+                    nombre=t['name'],
+                    on_click=lambda t=t: self.abrir_tunel(t),
+                    conectado=True
+                )
+                item = QListWidgetItem()
+                item.setSizeHint(card.sizeHint())
+                self.tuneles_list.addItem(item)
+                self.tuneles_list.setItemWidget(item, card)
+                print(f"➕ Agregando túnel propio (visual): {t['name']}")
+
+            # 🛰 Encabezado: CONEXIONES RECIENTES
+            titulo_recientes = QListWidgetItem("📡 CONEXIONES RECIENTES")
+            titulo_recientes.setFlags(Qt.NoItemFlags)
+            titulo_recientes.setForeground(QColor("#999999"))
+            titulo_recientes.setFont(QFont("Arial", 11, QFont.Bold))
+            self.tuneles_list.addItem(titulo_recientes)
+
+            for t in recientes:
+                conectado = True  # según lógica real
+                card = TunnelCard(
+                    nombre=t['name'],
+                    on_click=lambda t=t: self.abrir_tunel(t),
+                    conectado=conectado
+                )
+                item = QListWidgetItem()
+                item.setSizeHint(card.sizeHint())
+                self.tuneles_list.addItem(item)
+                self.tuneles_list.setItemWidget(item, card)
+                print(f"➕ Agregando túnel reciente (visual): {t['name']}")
+
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"⚠️ Error cargando túneles: {e}")
+            print(f"❌ Error al cargar túneles: {e}")
+
 
     def scroll_clear(self):
         for i in reversed(range(self.scroll_layout.count())):
@@ -245,6 +368,46 @@ class TunnelPanel(QWidget):
                 widget.setParent(None)
 
     def unirse_a_tunel(self, tunel):
+        from PyQt5.QtWidgets import QMessageBox
+        from PyQt5.QtCore import Qt
+
+        tunnel_id = tunel["id"]
+        if tunnel_id in self.conexiones_tuneles:
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Ya conectado")
+            msg.setIcon(QMessageBox.Information)
+            msg.setTextFormat(Qt.PlainText)
+            msg.setText(
+                f"⚠️ Ya estás conectado al túnel:\n\n'{tunel['name']}'\ncomo alias: {self.conexiones_tuneles[tunnel_id]['alias']}"
+            )
+
+            # 🔧 Estilo para fondo oscuro y texto blanco
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2e2e2e;
+                }
+                QLabel {
+                    color: white;
+                    font-size: 13px;
+                }
+                QPushButton {
+                    background-color: #444;
+                    color: white;
+                    padding: 6px 12px;
+                    min-width: 60px;
+                }
+                QPushButton:hover {
+                    background-color: #666;
+                }
+            """)
+
+            # ✅ Forzar tamaño mínimo
+            msg.setMinimumWidth(360)
+            msg.setMinimumHeight(180)
+
+            msg.exec_()
+            return
+
         from PyQt5.QtWidgets import QDialog, QFormLayout
 
         dialog = QDialog(self)
@@ -252,6 +415,8 @@ class TunnelPanel(QWidget):
         layout = QFormLayout(dialog)
 
         input_alias = QLineEdit()
+        input_alias.setStyleSheet("text-transform: uppercase; color: white;")
+        input_alias.textChanged.connect(lambda text: input_alias.setText(text.upper()))
         input_password = QLineEdit()
         input_password.setEchoMode(QLineEdit.Password)
 
@@ -265,7 +430,7 @@ class TunnelPanel(QWidget):
         if not dialog.exec_():
             return
 
-        alias = input_alias.text().strip()
+        alias = input_alias.text().strip().upper()
         password = input_password.text().strip()
 
         if not alias or not password:
@@ -343,6 +508,7 @@ class TunnelPanel(QWidget):
             self.fetch_participants(tunel["id"])
             self.fetch_files(tunel["id"])
             self.update_side_lists(tunel["id"])
+            self.actualizar_lista_tuneles()
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error de conexión:\n{e}")
@@ -409,7 +575,12 @@ class TunnelPanel(QWidget):
         layout = QFormLayout(dialog)
 
         self.input_name = QLineEdit()
+        self.input_name.setStyleSheet("text-transform: uppercase; color: white;")
+        self.input_name.textChanged.connect(lambda text: self.input_name.setText(text.upper()))
+
         self.input_password = QLineEdit()
+        self.input_password.setEchoMode(QLineEdit.Password)
+        self.input_password.setStyleSheet("color: white;")
         self.input_password.setEchoMode(QLineEdit.Password)
 
         layout.addRow("Nombre:", self.input_name)
@@ -427,7 +598,13 @@ class TunnelPanel(QWidget):
         layout = QFormLayout(dialog)
 
         input_nombre = QLineEdit()
+        input_nombre.setStyleSheet("text-transform: uppercase; color: white;")
+        input_nombre.textChanged.connect(lambda text: input_nombre.setText(text.upper()))
+
         input_alias = QLineEdit()
+        input_alias.setStyleSheet("text-transform: uppercase; color: white;")
+        input_alias.textChanged.connect(lambda text: input_alias.setText(text.upper()))
+
         input_password = QLineEdit()
         input_password.setEchoMode(QLineEdit.Password)
 
@@ -439,14 +616,41 @@ class TunnelPanel(QWidget):
         layout.addWidget(btn_ok)
 
         btn_ok.clicked.connect(lambda: self._conectar_a_tunel_manual(
-            dialog, input_nombre.text().strip(),
-            input_alias.text().strip(),
+            dialog, input_nombre.text().strip().upper(),
+            input_alias.text().strip().upper(),
             input_password.text().strip()
         ))
 
         dialog.exec_()
 
     def _conectar_a_tunel_manual(self, dialog, nombre, alias, password):
+        tunnel_id = tunel["id"]
+        # ✅ Verificar si ya estás conectado a este túnel
+        if tunnel_id in self.conexiones_tuneles:
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Ya conectado")
+            msg.setText(f"⚠️ Ya estás conectado al túnel '{tunel['name']}' con el alias: {self.conexiones_tuneles[tunnel_id]['alias']}")
+            msg.setIcon(QMessageBox.Information)
+            
+            # 🔧 Estilo para tema oscuro
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2e2e2e;
+                    color: white;
+                    font-size: 13px;
+                }
+                QPushButton {
+                    background-color: #444;
+                    color: white;
+                    padding: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #666;
+                }
+            """)
+            msg.exec_()
+            return
+
         import requests
         if not nombre or not alias or not password:
             QMessageBox.warning(self, "Error", "Todos los campos son requeridos")
@@ -528,6 +732,7 @@ class TunnelPanel(QWidget):
             self.fetch_participants(tunel["id"])
             self.fetch_files(tunel["id"])
             self.update_side_lists(tunel["id"])
+            self.actualizar_lista_tuneles()
 
             dialog.accept()
 
@@ -564,6 +769,10 @@ class TunnelPanel(QWidget):
             self.users_list.clear()
             self.files_list.clear()
             self.participant_timer.stop()
+
+        card = self.tunnel_cards.get(tunel_id)
+        if card:
+            card.set_conectado(False)
 
     def cerrar_pestana_tunel(self, index):
         tab = self.tab_widget.widget(index)

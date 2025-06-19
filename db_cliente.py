@@ -148,3 +148,19 @@ def marcar_cliente_en_linea(uuid_value):
     except Exception as e:
         from app_logger import logger
         logger.error(f"Error al marcar cliente en línea: {e}")
+
+def obtener_ultimas_conexiones_por_tunel(uuid):
+    try:
+        response = requests.get(f"http://symbolsaps.ddns.net:8000/api/ultimas_conexiones/{uuid}", timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        return {item["tunnel_id"]: item["ultimo_conectado"] for item in data}
+    except Exception as e:
+        from app_logger import logger
+        logger.error(f"Error al obtener últimas conexiones: {e}")
+        return {}
+
+def obtener_tuneles_desde_backend(client_uuid):
+    response = requests.get(f"http://symbolsaps.ddns.net:8000/api/tuneles/{client_uuid}", timeout=5)
+    response.raise_for_status()
+    return response.json()
