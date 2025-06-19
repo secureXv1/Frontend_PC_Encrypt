@@ -30,15 +30,15 @@ class HomePanel(QWidget):
 
         # Lista de mensajes como check list
         mensajes = [
-            "🔐 Seguridad sin compromisos \nTu información permanece protegida en todo momento",
-            "🧱 Cifrado de nivel avanzado \nBlindaje total para tus archivos y mensajes",
-            "🛰️ Túneles privados de comunicación \nSolo quienes deben ver, verán",
-            "🧑‍💻 Control total de tus datos \nSin intermediarios. Sin rastreo. Sin sorpresas",
-            "🌐 Funciona con o sin internet \nTu privacidad no depende de la red",
-            "🎯 Diseñada para lo crítico \nIdeal para organizaciones y equipos de seguridad",
-            "🗂️ Archivos invisibles para ojos no autorizados \nLo oculto, permanece oculto.",
-            "🕵️ Modo discreto \nInterfaz limpia, sin marcas visibles, sin huellas digitales",
-            "🧬 Identidad flexible \nUsa distintos alias según el contexto, sin revelar tu origen",
+            "Seguridad sin compromisos \nTu información permanece protegida en todo momento",
+            "Cifrado de nivel avanzado \nBlindaje total para tus archivos y mensajes",
+            "Túneles privados de comunicación \nSolo quienes deben ver, verán",
+            "Control total de tus datos \nSin intermediarios. Sin rastreo. Sin sorpresas",
+            "Funciona con o sin internet \nTu privacidad no depende de la red",
+            "Diseñada para lo crítico \nIdeal para organizaciones y equipos de seguridad",
+            "Archivos invisibles para ojos no autorizados \nLo oculto, permanece oculto.",
+            "Modo discreto \nInterfaz limpia, sin marcas visibles, sin huellas digitales",
+            "Identidad flexible \nUsa distintos alias según el contexto, sin revelar tu origen",
         ]
 
         for texto in mensajes:
