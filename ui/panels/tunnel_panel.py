@@ -154,6 +154,7 @@ class TunnelPanel(QWidget):
         self.files = {}
         self.cliente = None
 
+        # Mapea ID de túnel -> lista de tarjetas asociadas en la interfaz
         self.tunnel_cards = {}
         self.tuneles_list = QListWidget()
         self.tuneles_list.setStyleSheet("""
@@ -326,6 +327,7 @@ class TunnelPanel(QWidget):
 
     def actualizar_lista_tuneles(self):
         self.tuneles_list.clear()
+        self.tunnel_cards.clear()
         uuid_actual = get_client_uuid()
         print(f"🧠 UUID actual: {uuid_actual}")
 
@@ -355,7 +357,7 @@ class TunnelPanel(QWidget):
                 item.setSizeHint(card.sizeHint())
                 self.tuneles_list.addItem(item)
                 self.tuneles_list.setItemWidget(item, card)
-                self.tunnel_cards[t['id']] = card
+                self.tunnel_cards.setdefault(t['id'], []).append(card)
                 print(f"➕ Agregando túnel propio (visual): {t['name']}")
 
             # 🛰 Encabezado: CONEXIONES RECIENTES
@@ -376,7 +378,7 @@ class TunnelPanel(QWidget):
                 item.setSizeHint(card.sizeHint())
                 self.tuneles_list.addItem(item)
                 self.tuneles_list.setItemWidget(item, card)
-                self.tunnel_cards[t['id']] = card
+                self.tunnel_cards.setdefault(t['id'], []).append(card)
                 print(f"➕ Agregando túnel reciente (visual): {t['name']}")
 
         except Exception as e:
@@ -531,8 +533,8 @@ class TunnelPanel(QWidget):
                 "alias": alias,
             }
 
-            card = self.tunnel_cards.get(tunel["id"])
-            if card:
+            cards = self.tunnel_cards.get(tunel["id"], [])
+            for card in cards:
                 card.set_conectado(True)
 
             self.fetch_participants(tunel["id"])
@@ -759,8 +761,8 @@ class TunnelPanel(QWidget):
                 "alias": alias,
             }
 
-            card = self.tunnel_cards.get(tunel["id"])
-            if card:
+            cards = self.tunnel_cards.get(tunel["id"], [])
+            for card in cards:
                 card.set_conectado(True)
 
             self.fetch_participants(tunel["id"])
@@ -804,8 +806,8 @@ class TunnelPanel(QWidget):
             self.files_list.clear()
             self.participant_timer.stop()
 
-        card = self.tunnel_cards.get(tunel_id)
-        if card:
+        cards = self.tunnel_cards.get(tunel_id, [])
+        for card in cards:
             card.set_conectado(False)
 
     def cerrar_pestana_tunel(self, index):
