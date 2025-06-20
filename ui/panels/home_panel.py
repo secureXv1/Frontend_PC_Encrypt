@@ -1,7 +1,21 @@
 from PyQt5.QtWidgets import QWidget, QLabel, QListWidget, QListWidgetItem, QHBoxLayout, QVBoxLayout
-from PyQt5.QtGui import QPixmap, QPainter
+from PyQt5.QtGui import QPixmap, QPainter, QColor
 from PyQt5.QtCore import Qt, QPropertyAnimation
+from PyQt5.QtSvg import QSvgRenderer
 import os
+
+def load_colored_svg_icon(path, color="#00BCD4", size=24):
+        renderer = QSvgRenderer(path)
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+        painter.fillRect(pixmap.rect(), QColor(color))
+        painter.end()
+
+        return pixmap
 
 class HomePanel(QWidget):
     def __init__(self):
@@ -26,8 +40,6 @@ class HomePanel(QWidget):
         content_layout.setContentsMargins(40, 40, 40, 40)
         content_layout.setSpacing(20)
 
-        
-
         # Lista de mensajes como check list
         mensajes = [
             "Seguridad sin compromisos \nTu información permanece protegida en todo momento",
@@ -41,26 +53,37 @@ class HomePanel(QWidget):
             "Identidad flexible \nUsa distintos alias según el contexto, sin revelar tu origen",
         ]
 
-        for texto in mensajes:
+        icon_paths = [
+            "assets/icons/lock2.svg",
+            "assets/icons/shield.svg",
+            "assets/icons/satellite.svg",
+            "assets/icons/terminal.svg",
+            "assets/icons/wifi.svg",
+            "assets/icons/target.svg",
+            "assets/icons/hidden.svg",
+            "assets/icons/eye-off.svg",
+            "assets/icons/user.svg",
+        ]
+
+        for texto, icon_path in zip(mensajes, icon_paths):
             partes = texto.split("\n", 1)
             titulo = partes[0].strip()
             subtitulo = partes[1].strip() if len(partes) > 1 else ""
 
-            # Extrae el ícono del título (primer caracter + espacio)
-            icono = titulo[:2]
-            texto_titulo = titulo[2:].strip()
-
-            # Usa <div> para controlar espaciado y alineación visual
             html = f"""
                 <div>
-                    <span>{icono}</span>
-                    <span>{texto_titulo}</span><br>
-                    <span style='display:inline-block; margin-left:20px; font-size:11px; font-weight:normal; color:#cccccc; margin-top:6px;'>{subtitulo}</span>
+                    <span style='font-weight:bold;'>{titulo}</span><br>
+                    <span style='display:inline-block; margin-left:0px; font-size:13px; font-weight:normal; color:#cccccc; margin-top:6px;'>{subtitulo}</span>
                 </div>
             """
 
-            label = QLabel(html)
-            label.setStyleSheet("""
+            icono_label = QLabel()
+            icono_label.setPixmap(load_colored_svg_icon(icon_path, color="#FFF", size=38))
+            icono_label.setFixedSize(38, 38)
+            icono_label.setAlignment(Qt.AlignTop)
+
+            texto_label = QLabel(html)
+            texto_label.setStyleSheet("""
                 color: white;
                 font-size: 15px;
                 padding: 6px;
@@ -68,37 +91,27 @@ class HomePanel(QWidget):
                 border-left: 4px solid #00BCD4;
                 border-radius: 6px;
             """)
-            label.setTextFormat(Qt.RichText)
-            label.setWordWrap(True)
-            label.setVisible(False)
-            content_layout.addWidget(label)
-            self.entradas.append(label)
+            texto_label.setTextFormat(Qt.RichText)
+            texto_label.setWordWrap(True)
+            texto_label.setVisible(True)
+
+            fila = QHBoxLayout()
+            fila.setContentsMargins(0, 0, 0, 0)
+            fila.setSpacing(10)
+            fila.addWidget(icono_label)
+            fila.addWidget(texto_label)
+
+            contenedor = QWidget()
+            contenedor.setLayout(fila)
+            content_layout.addWidget(contenedor)
+
+            self.entradas.append(texto_label)
 
         right_widget = QWidget()
         right_widget.setLayout(content_layout)
         main_layout.addWidget(right_widget, 1)
 
         self.load_centered_image()
-
-        from PyQt5.QtCore import QTimer, QPropertyAnimation
-
-        QTimer.singleShot(500, lambda: [
-            QTimer.singleShot(i * 600, lambda l=label: self._mostrar_con_animacion(l))
-            for i, label in enumerate(self.entradas)
-        ])
-    def iniciar_animaciones(self):
-        from PyQt5.QtCore import QTimer, QPropertyAnimation
-        for i, label in enumerate(self.entradas):
-            QTimer.singleShot(i * 600, lambda l=label: self._mostrar_con_animacion(l))
-
-    def _mostrar_con_animacion(self, label):
-        label.setVisible(True)
-        anim = QPropertyAnimation(label, b"windowOpacity")
-        anim.setDuration(700)
-        anim.setStartValue(0.0)
-        anim.setEndValue(1.0)
-        anim.start()
-        self.animaciones.append(anim)  # mantener referencia
 
     def load_centered_image(self):
         fondo_path = os.path.join(
@@ -147,3 +160,6 @@ class HomePanel(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.load_centered_image()
+
+    
+   

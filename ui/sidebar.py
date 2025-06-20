@@ -5,7 +5,7 @@ from PyQt5.QtGui import QPixmap, QPainter, QColor
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtCore import Qt
 
-def colored_icon(svg_path, color, size=32):
+def colored_icon(svg_path, color, size=42):
     renderer = QSvgRenderer(svg_path)
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.transparent)
@@ -56,14 +56,14 @@ class Sidebar(QWidget):
         self.buttons = []
         self.icons = [
             ("assets/icons/home.svg", "Inicio"),
-            ("assets/icons/tunnel.svg", "Túneles"),
+            ("assets/icons/satellite.svg", "Túneles"),
             ("assets/icons/lock.svg", "Cifrado"),
         ]
 
         for i, (icon_path, tooltip) in enumerate(self.icons):
             btn = QPushButton()
             btn.setIcon(colored_icon(icon_path, "#FFFFFF"))  # o cualquier color que necesites
-            btn.setIconSize(QSize(32, 32))  # Ícono más grande
+            btn.setIconSize(QSize(42, 42))  # Ícono más grande
             btn.setToolTip(tooltip)
             btn.setCheckable(True)
             btn.clicked.connect(lambda _, idx=i: self.select(idx))
@@ -76,7 +76,7 @@ class Sidebar(QWidget):
         self.theme_btn = QPushButton()
         self.theme_btn.setCheckable(True)  
         self.theme_btn.setIcon(colored_icon("assets/icons/settings.svg", "#FFFFFF"))
-        self.theme_btn.setIconSize(QSize(28, 28))
+        self.theme_btn.setIconSize(QSize(42, 42))
         self.theme_btn.setToolTip("Ajustes")
         self.theme_btn.clicked.connect(lambda: self.select(3))  # 👉 activa vista 3 manualmente
         layout.addWidget(self.theme_btn)
