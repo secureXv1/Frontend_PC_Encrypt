@@ -64,6 +64,13 @@ class EncryptionPanel(QWidget):
         self.icon_path = "assets/icons"
         self.init_ui()
     
+    #Método reutilizable para seleccionar archivos
+    def browse_file(self, line_edit, file_filter="Todos los archivos (*)"):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo", "", file_filter)
+        if file_path:
+            line_edit.setText(file_path)
+
+    
     #Función para cambiar de color los iconos del menú (5 opciones)
     def load_colored_svg_icon(self, path, color_hex="#FFFFFF"):
         renderer = QSvgRenderer(path)
@@ -89,10 +96,9 @@ class EncryptionPanel(QWidget):
     #Función para mostrar menú + diseño
     def init_ui(self):
         self.setStyleSheet("background-color: #1E1E1E;")
-        main_layout = QHBoxLayout()
-        self.setLayout(main_layout)
+        main_layout = QHBoxLayout(self)
 
-        # Menú lateral (interno del panel de cifrado)
+        # Menú lateral
         self.menu_layout = QVBoxLayout()
         self.menu_layout.setSpacing(20)
         self.menu_layout.setContentsMargins(20, 30, 10, 30)
@@ -113,13 +119,12 @@ class EncryptionPanel(QWidget):
             icon_path = os.path.join(self.icon_path, icon_file)
             icon = self.load_colored_svg_icon(icon_path, "#FFFFFF")
             btn.setIcon(icon)
-            btn.original_icon_path = icon_path  # para recolorear luego
+            btn.original_icon_path = icon_path
             btn.setIconSize(QtCore.QSize(36, 36))
             btn.setCursor(Qt.PointingHandCursor)
             btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
             btn.setCheckable(True)
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-
             btn.setStyleSheet("""
                 QToolButton {
                     background-color: transparent;
@@ -148,19 +153,17 @@ class EncryptionPanel(QWidget):
         menu_widget.setFixedWidth(180)
         main_layout.addWidget(menu_widget)
 
-        # Área dinámica derecha
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("background-color: #2b2b2b; border-radius: 12px; margin: 20px;")
+        # Área dinámica con scroll
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("background-color: #2b2b2b; border: none; margin: 10px;")
 
         self.content_area = QWidget()
-        self.main_area_layout = QVBoxLayout(self.content_area)
-        scroll.setWidget(self.content_area)
+        self.main_area_layout = QVBoxLayout()
+        self.content_area.setLayout(self.main_area_layout)
 
-        main_layout.addWidget(scroll)
-
-        # ✅ Selección inicial
-        self.handle_selection("Crear llaves", self.menu_buttons["Crear llaves"])
+        self.scroll_area.setWidget(self.content_area)
+        main_layout.addWidget(self.scroll_area)
 
 
 
@@ -173,19 +176,16 @@ class EncryptionPanel(QWidget):
     
     #Función para modificar el panel de acuerdo a la selección del usuario
     def handle_selection(self, operation, button):
-        # Restaurar icono del botón anterior
         if self.selected_button:
             prev_path = self.selected_button.original_icon_path
             self.selected_button.setIcon(self.load_colored_svg_icon(prev_path, "#FFFFFF"))
             self.selected_button.setChecked(False)
 
-        # Establecer botón seleccionado y colorear ícono
         button.setChecked(True)
         self.selected_button = button
         button.setIcon(self.load_colored_svg_icon(button.original_icon_path, "#00BCD4"))
-
-        # Limpiar área central y mostrar la vista correspondiente
         self.clear_main_area()
+
         if operation == "Crear llaves":
             self.show_keygen_ui()
         elif operation == "Cifrar":
@@ -197,18 +197,19 @@ class EncryptionPanel(QWidget):
         elif operation == "Extraer":
             self.show_extract_ui()
 
+    
+    #Función para dar color a iconos menú 5 opciones
     def load_colored_svg_icon(self, path, color_hex="#FFFFFF"):
         renderer = QSvgRenderer(path)
         image = QImage(36, 36, QImage.Format_ARGB32)
         image.fill(Qt.transparent)
-
         painter = QPainter(image)
         renderer.render(painter)
         painter.end()
 
         painter = QPainter(image)
         painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
-        painter.fillRect(image.rect(), QColor(color_hex))
+        painter.fillRect(image.rect(), QtGui.QColor(color_hex))
         painter.end()
 
         return QIcon(QPixmap.fromImage(image))
@@ -230,126 +231,152 @@ class EncryptionPanel(QWidget):
             item = self.main_area_layout.takeAt(0)
             widget = item.widget()
             if widget:
-                widget.deleteLater()
+                widget.setParent(None)
     
    
     #Función guardar llaves pública y privada 
     def show_keygen_ui(self):
         self.clear_main_area()
 
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background-color: transparent; border: none;")
+
         container = QWidget()
         layout = QVBoxLayout(container)
+        layout.setContentsMargins(50, 40, 50, 40)
+        layout.setSpacing(30)
 
-        info = QLabel("Genera un par de llaves pública y privada para cifrado RSA.")
-        info.setWordWrap(True)
-        layout.addWidget(info)
+        # Título
+        title = QLabel("🔑 Crear llaves")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
+        title.setAlignment(Qt.AlignLeft)
+        layout.addWidget(title)
 
-        btn_guardar = QPushButton("Guardar llaves en archivo")
-        btn_guardar.clicked.connect(self.generar_y_guardar_llaves)
-        layout.addWidget(btn_guardar)
+        # Descripción
+        desc = QLabel("Genera un par de llaves pública y privada para cifrado RSA.")
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #CCCCCC; font-size: 14px;")
+        layout.addWidget(desc)
 
-        self.main_area_layout.addWidget(container)
+        # Botón para guardar llaves
+        save_btn = QPushButton("Guardar llaves en archivo")
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #00BCD4;
+                color: white;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #00a5bb;
+            }
+        """)
+        save_btn.clicked.connect(self.on_create_keys)
+        layout.addWidget(save_btn)
+
+        layout.addStretch()
+
+        scroll.setWidget(container)
+        self.main_area_layout.addWidget(scroll)
+
 
 
     
     #Función para generar llaves (Pública y Privada)
-    def generar_y_guardar_llaves(self):
+    def on_create_keys(self):
         try:
+            options = QFileDialog.Options()
+            base_path, _ = QFileDialog.getSaveFileName(
+                self, "Guardar claves (nombre base)", "", "PEM Files (*.pem);;Todos los archivos (*)", options=options
+            )
+            if not base_path:
+                return  # Cancelado por el usuario
+
+            base_name = base_path.rsplit(".", 1)[0]  # Quitar extensión si la hay
+
+            # Generar clave privada
             private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-            public_key = private_key.public_key()
 
-            # Seleccionar ubicación para clave privada
-            priv_path, _ = QFileDialog.getSaveFileName(
-                self, "Guardar clave privada", "clave_privada.pem", "PEM Files (*.pem)"
-            )
-            if not priv_path:
-                return
-
-            # Seleccionar ubicación para clave pública
-            pub_path, _ = QFileDialog.getSaveFileName(
-                self, "Guardar clave pública", "clave_publica.pem", "PEM Files (*.pem)"
-            )
-            if not pub_path:
-                return
-
-            # Prevenir que ambas rutas sean iguales
-            if priv_path == pub_path:
-                QtWidgets.QMessageBox.warning(self, "Error", "Las rutas de las llaves no pueden ser iguales.")
-                return
-
-            # Guardar clave privada
-            with open(priv_path, "wb") as f:
-                f.write(private_key.private_bytes(
+            # Serializar clave privada
+            with open(f"{base_name}_private.pem", "wb") as priv_file:
+                priv_file.write(private_key.private_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PrivateFormat.TraditionalOpenSSL,
                     encryption_algorithm=serialization.NoEncryption()
                 ))
 
-            # Guardar clave pública
-            with open(pub_path, "wb") as f:
-                f.write(public_key.public_bytes(
+            # Serializar clave pública
+            with open(f"{base_name}_public.pem", "wb") as pub_file:
+                pub_file.write(private_key.public_key().public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
                 ))
 
-            # Mostrar confirmación
-            QtWidgets.QMessageBox.information(self, "Éxito", "Llaves guardadas correctamente.")
+            # Confirmación
+            QMessageBox.information(
+                self, "Éxito",
+                f"Claves generadas correctamente:\n{base_name}_private.pem\n{base_name}_public.pem"
+            )
 
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Error", f"Error al generar llaves:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"No se pudieron generar las llaves:\n{str(e)}")
+
 
     
 
     #Función para mostrar el panel de cifrar un archivo
     def show_encrypt_ui(self):
-        self.clear_main_area()  # ✅ Limpia contenido previo
+        self.clear_main_area()
 
-        # Crear scroll para contenido interno
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("background-color: #f5f5f5; border: none;")
+        scroll.setStyleSheet("background-color: transparent; border: none;")
 
-        # Contenedor del contenido del panel
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(50, 40, 50, 40)
+        layout.setSpacing(30)
 
         # Título
         title = QLabel("🔐 Cifrar archivo")
-        title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         layout.addWidget(title)
 
         # Descripción
         desc = QLabel("Selecciona un archivo para cifrar utilizando contraseña o clave pública.")
-        desc.setStyleSheet("color: white;")
+        desc.setStyleSheet("color: #CCCCCC; font-size: 14px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # Botón para lanzar el flujo de cifrado completo (usando on_encrypt_file)
-        encrypt_btn = QPushButton("  Cifrar archivo")
-        encrypt_btn.setIcon(QIcon(os.path.join(self.icon_path, "encrypt.png")))
+        # Botón principal
+        encrypt_btn = QPushButton("Cifrar archivo")
         encrypt_btn.setCursor(Qt.PointingHandCursor)
         encrypt_btn.setStyleSheet("""
             QPushButton {
                 background-color: #00BCD4;
                 color: white;
-                padding: 12px;
-                font-weight: bold;
+                padding: 12px 24px;
                 border-radius: 6px;
+                font-weight: bold;
                 font-size: 14px;
             }
             QPushButton:hover {
-                background-color: #019db2;
+                background-color: #00a5bb;
             }
         """)
         encrypt_btn.clicked.connect(self.on_encrypt_file)
         layout.addWidget(encrypt_btn)
 
-        # Establecer layout y agregar scroll
+        layout.addStretch()
         scroll.setWidget(container)
         self.main_area_layout.addWidget(scroll)
+
+
+
 
 
 
@@ -358,26 +385,59 @@ class EncryptionPanel(QWidget):
     #Función para mostrar las opciones de descifrado en el panel
     def show_decrypt_ui(self):
         self.clear_main_area()
-        
-        layout = QVBoxLayout()
 
-        label = QLabel("Selecciona el archivo cifrado (.json):")
-        layout.addWidget(label)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background-color: transparent; border: none;")
 
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(50, 40, 50, 40)
+        layout.setSpacing(30)
+
+        # Título
+        title = QLabel("🔓 Descifrar archivo")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
+        layout.addWidget(title)
+
+        # Campo para archivo cifrado
+        file_row = QHBoxLayout()
         self.decrypt_file_input = QLineEdit()
+        self.decrypt_file_input.setPlaceholderText("Selecciona el archivo .json")
+        self.decrypt_file_input.setStyleSheet("padding: 8px;")
+        file_row.addWidget(self.decrypt_file_input)
+
         browse_btn = QPushButton("📂 Buscar")
+        browse_btn.setCursor(Qt.PointingHandCursor)
         browse_btn.clicked.connect(self.browse_encrypted_file)
+        file_row.addWidget(browse_btn)
+        layout.addLayout(file_row)
 
-        row = QHBoxLayout()
-        row.addWidget(self.decrypt_file_input)
-        row.addWidget(browse_btn)
-        layout.addLayout(row)
-
+        # Botón descifrar
         decrypt_btn = QPushButton("Descifrar archivo")
+        decrypt_btn.setCursor(Qt.PointingHandCursor)
+        decrypt_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #00BCD4;
+                color: white;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #00a5bb;
+            }
+        """)
         decrypt_btn.clicked.connect(self.decrypt_file_logic)
         layout.addWidget(decrypt_btn)
 
-        self.main_area_layout.addLayout(layout)
+        layout.addStretch()
+        scroll.setWidget(container)
+        self.main_area_layout.addWidget(scroll)
+
+
+
 
  
 
@@ -511,44 +571,80 @@ class EncryptionPanel(QWidget):
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo descifrar el archivo:\n{str(e)}")   
 
+    
+    
+    
     #Función que muestra los campos en la interfaz para ocultar
     def show_hide_ui(self):
         self.clear_main_area()
-       
-        layout = QVBoxLayout()
 
-        #Archivo contenedor
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background-color: #2b2b2b; border: none;")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(20)
+
+        title = QLabel("🫙 Ocultar archivo cifrado")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
+        layout.addWidget(title)
+
+        desc = QLabel("Inserta un archivo cifrado (.json) dentro de otro archivo contenedor.")
+        desc.setStyleSheet("color: white;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
         label1 = QLabel("Selecciona el archivo contenedor:")
+        label1.setStyleSheet("color: white;")
         layout.addWidget(label1)
 
         self.container_input = QLineEdit()
         browse_container = QPushButton("📂 Buscar")
         browse_container.clicked.connect(lambda: self.browse_file(self.container_input))
-
         row1 = QHBoxLayout()
         row1.addWidget(self.container_input)
         row1.addWidget(browse_container)
         layout.addLayout(row1)
 
-        #Archivo cifrado a ocultar
         label2 = QLabel("Selecciona el archivo cifrado (.json):")
+        label2.setStyleSheet("color: white;")
         layout.addWidget(label2)
 
         self.hidden_input = QLineEdit()
         browse_hidden = QPushButton("📂 Buscar")
-        browse_hidden.clicked.connect(lambda: self.browse_file(self.hidden_input))
-
+        browse_hidden.clicked.connect(lambda: self.browse_file(self.hidden_input, "JSON Files (*.json);;Todos los archivos (*)"))
         row2 = QHBoxLayout()
         row2.addWidget(self.hidden_input)
         row2.addWidget(browse_hidden)
         layout.addLayout(row2)
 
-        #Botón para ocultar
         hide_btn = QPushButton("Ocultar archivo dentro del contenedor")
         hide_btn.clicked.connect(self.hide_encrypted_file_logic)
         layout.addWidget(hide_btn)
+        hide_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #00BCD4;
+                color: white;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #00a5bb;
+            }
+        """)
 
-        self.main_area_layout.addLayout(layout)
+        scroll.setWidget(container)
+        self.main_area_layout.addWidget(scroll)
+
+
+
+
+
 
     
     #Método para que el botón para seleccionar archivo contenedor funcione
@@ -604,16 +700,33 @@ class EncryptionPanel(QWidget):
     #Función que muestra los campos en la interfaz para extracción de archivos
     def show_extract_ui(self):
         self.clear_main_area()
-       
-        layout = QVBoxLayout()
 
-        label = QLabel("Selecciona el archivo contenedor con información oculta:")
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background-color: #2b2b2b; border: none;")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(20)
+
+        title = QLabel("📤 Extraer archivo oculto")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
+        layout.addWidget(title)
+
+        desc = QLabel("Selecciona un archivo contenedor que tenga un archivo cifrado oculto incrustado.")
+        desc.setStyleSheet("color: white;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        label = QLabel("Selecciona el archivo contenedor:")
+        label.setStyleSheet("color: white;")
         layout.addWidget(label)
 
         self.extract_input = QLineEdit()
         browse_btn = QPushButton("📂 Buscar")
         browse_btn.clicked.connect(lambda: self.browse_file(self.extract_input))
-
         row = QHBoxLayout()
         row.addWidget(self.extract_input)
         row.addWidget(browse_btn)
@@ -622,8 +735,28 @@ class EncryptionPanel(QWidget):
         extract_btn = QPushButton("Extraer archivo oculto")
         extract_btn.clicked.connect(self.extract_hidden_file_logic)
         layout.addWidget(extract_btn)
-  
-        self.main_area_layout.addLayout(layout)
+        extract_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #00BCD4;
+                color: white;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #00a5bb;
+            }
+        """)
+
+        scroll.setWidget(container)
+        self.main_area_layout.addWidget(scroll)
+
+
+
+
+
+
 
     
     #Función contiene la lógica para extraer archivo
