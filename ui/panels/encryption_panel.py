@@ -70,16 +70,20 @@ class EncryptionPanel(QWidget):
         image = QImage(36, 36, QImage.Format_ARGB32)
         image.fill(Qt.transparent)
 
+        # Renderizar SVG
         painter = QPainter(image)
         renderer.render(painter)
         painter.end()
 
+        # Aplicar color
+        mask = image.createMaskFromColor(Qt.transparent, Qt.MaskOutColor)
         painter = QPainter(image)
         painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
         painter.fillRect(image.rect(), QColor(color_hex))
         painter.end()
 
         return QIcon(QPixmap.fromImage(image))
+
     
         
     #Función para mostrar menú + diseño
@@ -97,10 +101,10 @@ class EncryptionPanel(QWidget):
 
         options = [
             ("Crear llaves", "keys.svg"),
-            ("Cifrar archivo", "encrypt.svg"),
-            ("Descifrar archivo", "decrypt.svg"),
-            ("Ocultar archivo", "hidden.svg"),
-            ("Extraer archivo", "extract.svg"),
+            ("Cifrar", "encrypt.svg"),
+            ("Descifrar", "decrypt.svg"),
+            ("Ocultar", "hidden.svg"),
+            ("Extraer", "extract.svg"),
         ]
 
         for label, icon_file in options:
@@ -122,17 +126,16 @@ class EncryptionPanel(QWidget):
                     border: none;
                     color: white;
                     font-weight: bold;
-                    padding: 6px;
                 }
                 QToolButton:hover {
-                    background-color: #333333;
+                    background-color: #333;
                     border-radius: 8px;
                 }
                 QToolButton:checked {
                     background-color: #3a3a3a;
                     border-left: 4px solid #00BCD4;
-                    border-top-left-radius: 8px;
-                    border-bottom-left-radius: 8px;
+                    border-radius: 4px;
+                    color: #00BCD4;
                 }
             """)
             btn.clicked.connect(lambda checked, op=label, b=btn: self.handle_selection(op, b))
@@ -146,11 +149,15 @@ class EncryptionPanel(QWidget):
         main_layout.addWidget(menu_widget)
 
         # Área dinámica derecha
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background-color: #2b2b2b; border-radius: 12px; margin: 20px;")
+
         self.content_area = QWidget()
-        self.main_area_layout = QVBoxLayout()
-        self.content_area.setLayout(self.main_area_layout)
-        self.content_area.setStyleSheet("background-color: #2b2b2b; border-radius: 12px; margin: 20px;")
-        main_layout.addWidget(self.content_area)
+        self.main_area_layout = QVBoxLayout(self.content_area)
+        scroll.setWidget(self.content_area)
+
+        main_layout.addWidget(scroll)
 
         # ✅ Selección inicial
         self.handle_selection("Crear llaves", self.menu_buttons["Crear llaves"])
@@ -181,13 +188,13 @@ class EncryptionPanel(QWidget):
         self.clear_main_area()
         if operation == "Crear llaves":
             self.show_keygen_ui()
-        elif operation == "Cifrar archivo":
+        elif operation == "Cifrar":
             self.show_encrypt_ui()
-        elif operation == "Descifrar archivo":
+        elif operation == "Descifrar":
             self.show_decrypt_ui()
-        elif operation == "Ocultar archivo":
+        elif operation == "Ocultar":
             self.show_hide_ui()
-        elif operation == "Extraer archivo":
+        elif operation == "Extraer":
             self.show_extract_ui()
 
     def load_colored_svg_icon(self, path, color_hex="#FFFFFF"):
@@ -223,13 +230,15 @@ class EncryptionPanel(QWidget):
             item = self.main_area_layout.takeAt(0)
             widget = item.widget()
             if widget:
-                widget.setParent(None)
+                widget.deleteLater()
     
    
     #Función guardar llaves pública y privada 
     def show_keygen_ui(self):
         self.clear_main_area()
-        layout = QVBoxLayout()
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
 
         info = QLabel("Genera un par de llaves pública y privada para cifrado RSA.")
         info.setWordWrap(True)
@@ -238,8 +247,9 @@ class EncryptionPanel(QWidget):
         btn_guardar = QPushButton("Guardar llaves en archivo")
         btn_guardar.clicked.connect(self.generar_y_guardar_llaves)
         layout.addWidget(btn_guardar)
-        
-        self.main_area_layout.addLayout(layout)
+
+        self.main_area_layout.addWidget(container)
+
 
     
     #Función para generar llaves (Pública y Privada)
