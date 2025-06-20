@@ -60,7 +60,7 @@ class HomePanel(QWidget):
             "assets/icons/terminal.svg",
             "assets/icons/wifi.svg",
             "assets/icons/target.svg",
-            "assets/icons/hidden.svg",
+            "assets/icons/hidden2.svg",
             "assets/icons/eye-off.svg",
             "assets/icons/user.svg",
         ]
