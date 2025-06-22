@@ -29,7 +29,7 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtWidgets import QInputDialog
 from PyQt5.QtWidgets import QLabel, QHBoxLayout, QWidget
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import QTimer, Qt, QSize
+from PyQt5.QtCore import QTimer, Qt, QSize, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QImage, QColor
 from PyQt5.QtWidgets import QComboBox
@@ -38,7 +38,7 @@ import base64
 from PyQt5.QtWidgets import QInputDialog
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from PyQt5.QtSvg import QSvgRenderer
-from PyQt5.QtGui import QPainter, QImage
+from PyQt5.QtGui import QPainter, QImage, QDragEnterEvent, QDropEvent
 
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -55,6 +55,72 @@ UIu1Bie1A04MPaKuvKXpnML5Ib9LGiXcjI6kvjOXhrj1dT8ES8JALGJWnohYZjkJ
 
 MASTER_PASSWORD = b'SeguraAdmin123!'
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#Clase Drag and Drop para añadir archivos
+class FileDropWidget(QLabel):
+    fileDropped = pyqtSignal(str)
+
+    def __init__(self, placeholder_text="Arrastra un archivo aquí o haz clic para buscar...", parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setAlignment(Qt.AlignCenter)
+        self.setWordWrap(True)
+
+        self.placeholder_text = placeholder_text
+        self.file_path = ""
+        self.active_style = """
+            QLabel {
+                background-color: #2b2b2b;
+                color: white;
+                border: 2px solid #00BCD4;
+                border-radius: 10px;
+                padding: 20px;
+                font-size: 13px;
+            }
+        """
+        self.default_style = """
+            QLabel {
+                background-color: #2b2b2b;
+                color: #aaa;
+                border: 2px dashed #5a5a5a;
+                border-radius: 10px;
+                padding: 20px;
+                font-size: 13px;
+            }
+            QLabel:hover {
+                border-color: #00BCD4;
+                color: white;
+            }
+        """
+        self.setText(self.placeholder_text)
+        self.setStyleSheet(self.default_style)
+
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent):
+        if event.mimeData().hasUrls():
+            file_path = event.mimeData().urls()[0].toLocalFile()
+            self.set_file_path(file_path)
+            self.fileDropped.emit(file_path)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            file_path, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo", "", "Todos los archivos (*)")
+            if file_path:
+                self.set_file_path(file_path)
+                self.fileDropped.emit(file_path)
+
+    def set_file_path(self, path: str):
+        self.file_path = path
+        self.setText(f"<b>{os.path.basename(path)}</b>")
+        self.setStyleSheet(self.active_style)
+
+
+
+
+
 
 class EncryptionPanel(QWidget):
     def __init__(self):
@@ -250,7 +316,7 @@ class EncryptionPanel(QWidget):
         # Título
         title = QLabel("🔑 Crear llaves")
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
-        title.setAlignment(Qt.AlignLeft)
+        title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
         # Descripción
@@ -343,6 +409,7 @@ class EncryptionPanel(QWidget):
 
         # Título
         title = QLabel("🔐 Cifrar archivo")
+        title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         layout.addWidget(title)
 
@@ -397,26 +464,81 @@ class EncryptionPanel(QWidget):
 
         # Título
         title = QLabel("🔓 Descifrar archivo")
+        title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         layout.addWidget(title)
 
-        # Campo para archivo cifrado
-        file_row = QHBoxLayout()
-        self.decrypt_file_input = QLineEdit()
-        self.decrypt_file_input.setPlaceholderText("Selecciona el archivo .json")
-        self.decrypt_file_input.setStyleSheet("padding: 8px;")
-        file_row.addWidget(self.decrypt_file_input)
-
-        browse_btn = QPushButton("📂 Buscar")
-        browse_btn.setCursor(Qt.PointingHandCursor)
-        browse_btn.clicked.connect(self.browse_encrypted_file)
-        file_row.addWidget(browse_btn)
-        layout.addLayout(file_row)
+        # Drag & Drop
+        self.decrypt_drop = FileDropWidget("📂 Arrastra aquí tu archivo cifrado o haz clic para buscar...")
+        layout.addWidget(self.decrypt_drop)
 
         # Botón descifrar
-        decrypt_btn = QPushButton("Descifrar archivo")
-        decrypt_btn.setCursor(Qt.PointingHandCursor)
-        decrypt_btn.setStyleSheet("""
+        self.decrypt_btn = QPushButton("Descifrar archivo")
+        self.decrypt_btn.setCursor(Qt.PointingHandCursor)
+        self.decrypt_btn.setEnabled(False)  # Desactivado al inicio
+        self.decrypt_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #555;
+                color: #aaa;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+        """)
+        self.decrypt_btn.clicked.connect(self.decrypt_file_logic)
+        layout.addWidget(self.decrypt_btn)
+
+        # Habilitar el botón cuando se carga un archivo
+        def enable_decrypt_button(path):
+            self.decrypt_file_path = path
+            self.decrypt_btn.setEnabled(True)
+            self.decrypt_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #00BCD4;
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #00a5bb;
+                }
+            """)
+
+        self.decrypt_drop.fileDropped.connect(enable_decrypt_button)
+
+        layout.addStretch()
+        scroll.setWidget(container)
+        self.main_area_layout.addWidget(scroll)
+
+    
+
+
+    #Función para gestionar el evento cuando el usuario arrastra y suelta un archivo
+    def on_file_dropped(self, file_path):
+        self.decrypt_file_path = file_path
+        self.decrypt_btn.setEnabled(True)
+        self.animate_button_activation(self.decrypt_btn)
+    
+
+    #Función para animación de botón
+    def animate_button_activation(self, button: QPushButton):
+        animation = QPropertyAnimation(button, b"styleSheet")
+        animation.setDuration(300)
+        animation.setEasingCurve(QEasingCurve.InOutQuad)
+        animation.setStartValue("""
+            QPushButton {
+                background-color: #555;
+                color: #aaa;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+        """)
+        animation.setEndValue("""
             QPushButton {
                 background-color: #00BCD4;
                 color: white;
@@ -429,12 +551,10 @@ class EncryptionPanel(QWidget):
                 background-color: #00a5bb;
             }
         """)
-        decrypt_btn.clicked.connect(self.decrypt_file_logic)
-        layout.addWidget(decrypt_btn)
+        animation.start()
+        # Evita que se destruya antes de terminar
+        self._current_animation = animation
 
-        layout.addStretch()
-        scroll.setWidget(container)
-        self.main_area_layout.addWidget(scroll)
 
 
 
@@ -451,7 +571,7 @@ class EncryptionPanel(QWidget):
 
     #Función que contiene la lógica para descifrar un archivo
     def decrypt_file_logic(self):
-        encrypted_file = self.decrypt_file_input.text().strip()
+        encrypted_file = getattr(self, "decrypt_file_path", "").strip()
         if not os.path.isfile(encrypted_file):
             QtWidgets.QMessageBox.warning(self, "Error", "Archivo no válido o no seleccionado.")
             return
@@ -469,9 +589,9 @@ class EncryptionPanel(QWidget):
             encrypted_data = bytes.fromhex(payload["data"])
             ext = payload.get("ext", "")
             decrypted_serialized = None
-            user_password = None  #se usa si fue descifrado como admin
+            user_password = None  # se usa si fue descifrado como admin
 
-            #=== CIFRADO CON CONTRASEÑA ===
+            # === CIFRADO CON CONTRASEÑA ===
             if "salt_user" in payload and "salt_admin" in payload and "encrypted_user_password" in payload:
                 salt_user = base64.b64decode(payload["salt_user"])
                 salt_admin = base64.b64decode(payload["salt_admin"])
@@ -486,29 +606,29 @@ class EncryptionPanel(QWidget):
                     password_input = dlg.get_password()
 
                     try:
-                        #Intentar con contraseña del usuario
+                        # Intentar con contraseña del usuario
                         kdf_user = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt_user, iterations=100000)
                         aes_key_user = base64.urlsafe_b64encode(kdf_user.derive(password_input.encode()))
                         fernet_user = Fernet(aes_key_user)
                         decrypted_serialized = fernet_user.decrypt(encrypted_data)
-                        break  #Éxito usuario
+                        break  # Éxito usuario
 
                     except Exception:
                         try:
-                            #Intentar como administrador
+                            # Intentar como administrador
                             kdf_admin = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt_admin, iterations=100000)
                             aes_key_admin = base64.urlsafe_b64encode(kdf_admin.derive(password_input.encode()))
                             fernet_admin = Fernet(aes_key_admin)
 
-                            #Recuperar contraseña real del usuario
+                            # Recuperar contraseña real del usuario
                             user_password = fernet_admin.decrypt(encrypted_pwd_bytes).decode()
 
-                            #Usar contraseña del usuario para descifrar
+                            # Usar contraseña del usuario para descifrar
                             kdf_user = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt_user, iterations=100000)
                             aes_key_user = base64.urlsafe_b64encode(kdf_user.derive(user_password.encode()))
                             fernet_user = Fernet(aes_key_user)
                             decrypted_serialized = fernet_user.decrypt(encrypted_data)
-                            break  #Éxito como admin
+                            break  # Éxito como admin
 
                         except Exception:
                             intentos += 1
@@ -518,7 +638,7 @@ class EncryptionPanel(QWidget):
                                 QtWidgets.QMessageBox.critical(self, "Error", "No se pudo descifrar el archivo tras varios intentos.")
                                 return
 
-            #=== CIFRADO CON CLAVE PÚBLICA ===
+            # === CIFRADO CON CLAVE PÚBLICA ===
             elif "key_user" in payload and "key_master" in payload:
                 private_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
                     self, "Seleccionar tu clave privada (.pem)", "", "PEM Files (*.pem);;Todos los archivos (*)"
@@ -549,7 +669,7 @@ class EncryptionPanel(QWidget):
             else:
                 raise Exception("Formato de archivo cifrado no compatible.")
 
-            #=== GUARDAR ARCHIVO DESCIFRADO ===
+            # === GUARDAR ARCHIVO DESCIFRADO ===
             original_payload = json.loads(decrypted_serialized.decode("utf-8"))
             ext = original_payload.get("ext", ext)
             file_data = base64.b64decode(original_payload["content"])
@@ -562,14 +682,15 @@ class EncryptionPanel(QWidget):
 
             QtWidgets.QMessageBox.information(self, "Éxito", f"Archivo descifrado guardado como:\n{save_path}")
 
-            #=== MOSTRAR CONTRASEÑA ORIGINAL (si se descifró como admin) ===
+            # === MOSTRAR CONTRASEÑA ORIGINAL (si se descifró como admin) ===
             if user_password:
                 QtWidgets.QApplication.clipboard().setText(user_password)
                 toast = ToastNotification("Contraseña copiada al portapapeles", parent=self)
                 toast.show()
 
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo descifrar el archivo:\n{str(e)}")   
+            QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo descifrar el archivo:\n{str(e)}")
+   
 
     
     
@@ -580,69 +701,92 @@ class EncryptionPanel(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("background-color: #2b2b2b; border: none;")
+        scroll.setStyleSheet("background-color: transparent; border: none;")
 
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(50, 40, 50, 40)
+        layout.setSpacing(30)
 
-        title = QLabel("🫙 Ocultar archivo cifrado")
+        title = QLabel("📦 Ocultar archivo cifrado")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         layout.addWidget(title)
 
         desc = QLabel("Inserta un archivo cifrado (.json) dentro de otro archivo contenedor.")
-        desc.setStyleSheet("color: white;")
+        desc.setStyleSheet("color: white; font-weight: 500;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        label1 = QLabel("Selecciona el archivo contenedor:")
-        label1.setStyleSheet("color: white;")
-        layout.addWidget(label1)
+        # === Drag & Drop 1 ===
+        self.container_drop = FileDropWidget("🗂️ Arrastra el archivo contenedor o haz clic para buscar...")
+        layout.addWidget(self.container_drop)
 
-        self.container_input = QLineEdit()
-        browse_container = QPushButton("📂 Buscar")
-        browse_container.clicked.connect(lambda: self.browse_file(self.container_input))
-        row1 = QHBoxLayout()
-        row1.addWidget(self.container_input)
-        row1.addWidget(browse_container)
-        layout.addLayout(row1)
+        # === Drag & Drop 2 ===
+        self.hidden_drop = FileDropWidget("🔐 Arrastra el archivo cifrado (.json) o haz clic para buscar...")
+        layout.addWidget(self.hidden_drop)
 
-        label2 = QLabel("Selecciona el archivo cifrado (.json):")
-        label2.setStyleSheet("color: white;")
-        layout.addWidget(label2)
-
-        self.hidden_input = QLineEdit()
-        browse_hidden = QPushButton("📂 Buscar")
-        browse_hidden.clicked.connect(lambda: self.browse_file(self.hidden_input, "JSON Files (*.json);;Todos los archivos (*)"))
-        row2 = QHBoxLayout()
-        row2.addWidget(self.hidden_input)
-        row2.addWidget(browse_hidden)
-        layout.addLayout(row2)
-
-        hide_btn = QPushButton("Ocultar archivo dentro del contenedor")
-        hide_btn.clicked.connect(self.hide_encrypted_file_logic)
-        layout.addWidget(hide_btn)
-        hide_btn.setStyleSheet("""
+        # === Botón
+        self.hide_btn = QPushButton("Ocultar archivo dentro del contenedor")
+        self.hide_btn.setEnabled(False)
+        self.hide_btn.setCursor(Qt.PointingHandCursor)
+        self.hide_btn.clicked.connect(self.hide_encrypted_file_logic)
+        self.hide_btn.setStyleSheet("""
             QPushButton {
-                background-color: #00BCD4;
-                color: white;
+                background-color: #555;
+                color: #ccc;
                 padding: 12px 24px;
                 border-radius: 6px;
                 font-weight: bold;
                 font-size: 14px;
             }
-            QPushButton:hover {
+            QPushButton:hover:enabled {
                 background-color: #00a5bb;
+                color: white;
+            }
+            QPushButton:enabled {
+                background-color: #00BCD4;
+                color: white;
             }
         """)
+        layout.addWidget(self.hide_btn)
 
+        # === Función para validar estado ===
+        def validate_inputs():
+            cont = getattr(self.container_drop, "file_path", None)
+            hide = getattr(self.hidden_drop, "file_path", None)
+            self.hide_btn.setEnabled(bool(cont and hide))
+
+        # === Conectar Drop + Actualizar valor y validar ===
+        self.container_drop.fileDropped.connect(
+            lambda path: (self.container_drop.set_file_path(path), validate_inputs())
+        )
+        self.hidden_drop.fileDropped.connect(
+            lambda path: (self.hidden_drop.set_file_path(path), validate_inputs())
+        )
+
+        layout.addStretch()
         scroll.setWidget(container)
         self.main_area_layout.addWidget(scroll)
 
 
+    
 
+    #Función que evalúa si el 1er campo contiene un archivo (show_hide_ui)
+    def on_container_file_dropped(self, path):
+        self.container_file_path = path
+        self.evaluate_hide_button_ready()
+
+    #Función que evalúa si el 2do campo contiene un archivo (show_hide_ui)
+    def on_hidden_file_dropped(self, path):
+        self.hidden_file_path = path
+        self.evaluate_hide_button_ready()
+
+    #Función que activa el botón para ocultar archivo (show_hide_ui)
+    def evaluate_hide_button_ready(self):
+        if hasattr(self, "container_file_path") and hasattr(self, "hidden_file_path"):
+            self.hide_btn.setEnabled(True)
+            self.animate_button_activation(self.hide_btn)
 
 
 
@@ -663,29 +807,48 @@ class EncryptionPanel(QWidget):
         if path:
             self.encrypted_input.setText(path)
     
+    
+    
     #Función para ocultar archivo cifrado (esteganografía)
     def hide_encrypted_file_logic(self):
-        contenedor_path = self.container_input.text()
-        cifrado_path = self.hidden_input.text()
+        # Obtener rutas desde los widgets de arrastrar/soltar
+        contenedor_path = getattr(self.container_drop, "file_path", "").strip()
+        cifrado_path = getattr(self.hidden_drop, "file_path", "").strip()
 
+        # Validación
         if not contenedor_path or not cifrado_path:
             QtWidgets.QMessageBox.warning(self, "Campos incompletos", "Debes seleccionar ambos archivos.")
             return
 
+        if not cifrado_path.endswith(".json"):
+            QtWidgets.QMessageBox.warning(self, "Archivo incorrecto", "El archivo cifrado debe ser un archivo .json.")
+            return
+
         try:
+            # Leer ambos archivos
             with open(contenedor_path, "rb") as f1:
                 contenedor = f1.read()
             with open(cifrado_path, "rb") as f2:
                 cifrado = f2.read()
 
+            # Firmar el contenido
             firmado = contenedor + b"<<--BETTY_START-->>" + cifrado
 
+            # Sugerir extensión original del contenedor
+            ext = os.path.splitext(contenedor_path)[1] or ".dat"
+            nombre_sugerido = f"oculto{ext}"
+
+            # Selección de destino
             ruta_salida, _ = QtWidgets.QFileDialog.getSaveFileName(
-                self, "Guardar archivo combinado", "oculto.dat", "Todos los archivos (*)"
+                self,
+                "Guardar archivo combinado",
+                nombre_sugerido,
+                f"Archivos (*{ext});;Todos los archivos (*)"
             )
             if not ruta_salida:
                 return
 
+            # Guardar archivo combinado
             with open(ruta_salida, "wb") as out:
                 out.write(firmado)
 
@@ -693,6 +856,8 @@ class EncryptionPanel(QWidget):
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo ocultar el archivo:\n{str(e)}")
+
+
     
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -703,94 +868,128 @@ class EncryptionPanel(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("background-color: #2b2b2b; border: none;")
+        scroll.setStyleSheet("background-color: transparent; border: none;")
 
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(50, 40, 50, 40)
+        layout.setSpacing(30)
 
+        # Título
         title = QLabel("📤 Extraer archivo oculto")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         layout.addWidget(title)
 
-        desc = QLabel("Selecciona un archivo contenedor que tenga un archivo cifrado oculto incrustado.")
+        # Descripción
+        desc = QLabel("Selecciona un archivo contenedor que tenga un archivo cifrado incrustado.")
         desc.setStyleSheet("color: white;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        label = QLabel("Selecciona el archivo contenedor:")
-        label.setStyleSheet("color: white;")
-        layout.addWidget(label)
+        # Área Drag & Drop
+        self.extract_drop = FileDropWidget("🗂️ Arrastra el archivo contenedor aquí o haz clic para buscar...")
+        layout.addWidget(self.extract_drop)
 
-        self.extract_input = QLineEdit()
-        browse_btn = QPushButton("📂 Buscar")
-        browse_btn.clicked.connect(lambda: self.browse_file(self.extract_input))
-        row = QHBoxLayout()
-        row.addWidget(self.extract_input)
-        row.addWidget(browse_btn)
-        layout.addLayout(row)
+        # Activar botón si se carga archivo válido
+        def on_extract_file_dropped(path):
+            if os.path.isfile(path):
+                self.extract_drop.set_file_path(path)
+                self.extract_btn.setEnabled(True)
+            else:
+                self.extract_btn.setEnabled(False)
 
-        extract_btn = QPushButton("Extraer archivo oculto")
-        extract_btn.clicked.connect(self.extract_hidden_file_logic)
-        layout.addWidget(extract_btn)
-        extract_btn.setStyleSheet("""
+        self.extract_drop.fileDropped.connect(on_extract_file_dropped)
+
+        # Botón de extracción
+        self.extract_btn = QPushButton("Extraer archivo oculto")
+        self.extract_btn.setEnabled(False)
+        self.extract_btn.setCursor(Qt.PointingHandCursor)
+        self.extract_btn.clicked.connect(self.extract_hidden_file_logic)
+        self.extract_btn.setStyleSheet("""
             QPushButton {
-                background-color: #00BCD4;
-                color: white;
+                background-color: #555;
+                color: #ccc;
                 padding: 12px 24px;
                 border-radius: 6px;
                 font-weight: bold;
                 font-size: 14px;
             }
-            QPushButton:hover {
+            QPushButton:hover:enabled {
                 background-color: #00a5bb;
+                color: white;
+            }
+            QPushButton:enabled {
+                background-color: #00BCD4;
+                color: white;
             }
         """)
+        layout.addWidget(self.extract_btn)
 
+        layout.addStretch()
         scroll.setWidget(container)
         self.main_area_layout.addWidget(scroll)
 
+    
 
-
-
+    #Método auxiliar para la función de extraer archivos (Drag and Drop)
+    def on_extract_file_dropped(self, path):
+        self.extract_file_path = path
+        self.extract_btn.setEnabled(True)
+        self.animate_button_activation(self.extract_btn)
 
 
 
     
     #Función contiene la lógica para extraer archivo
     def extract_hidden_file_logic(self):
-        contenedor_path = self.extract_input.text()
-
-        if not contenedor_path:
-            QtWidgets.QMessageBox.warning(self, "Campo incompleto", "Debes seleccionar un archivo.")
-            return
-
         try:
+            contenedor_path = getattr(self.extract_drop, "file_path", None)
+
+            if not contenedor_path or not os.path.isfile(contenedor_path):
+                QtWidgets.QMessageBox.warning(self, "Error", "Debes seleccionar un archivo contenedor válido.")
+                return
+
+            # Leer el archivo contenedor y buscar el delimitador
             with open(contenedor_path, "rb") as f:
                 contenido = f.read()
 
-            firma = b"<<--BETTY_START-->>"
-            idx = contenido.find(firma)
+            delimiter = b"<<--BETTY_START-->>"
+            idx = contenido.find(delimiter)
+
             if idx == -1:
-                raise Exception("No se encontró información oculta en el archivo.")
+                raise Exception("No se encontró ningún archivo oculto en este contenedor.")
 
-            cifrado = contenido[idx + len(firma):]
+            cifrado = contenido[idx + len(delimiter):]
 
-            ruta_salida, _ = QtWidgets.QFileDialog.getSaveFileName(
-                self, "Guardar archivo extraído", "extraído.json", "Archivos JSON (*.json);;Todos los archivos (*)"
+            # Extensión fija para archivos cifrados
+            ext = ".json"
+            base_name = os.path.splitext(os.path.basename(contenedor_path))[0]
+            nombre_sugerido = f"{base_name}_oculto{ext}"
+
+            # Carpeta inicial: misma que el contenedor
+            directorio_inicial = os.path.dirname(contenedor_path)
+
+            output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self,
+                "Guardar archivo extraído",
+                os.path.join(directorio_inicial, nombre_sugerido),
+                f"Archivos JSON (*.json);;Todos los archivos (*)"
             )
-            if not ruta_salida:
+            if not output_path:
                 return
 
-            with open(ruta_salida, "wb") as out:
+            with open(output_path, "wb") as out:
                 out.write(cifrado)
 
-            QtWidgets.QMessageBox.information(self, "Éxito", f"Archivo extraído guardado en:\n{ruta_salida}")
+            QtWidgets.QMessageBox.information(self, "Éxito", f"Archivo extraído correctamente:\n{output_path}")
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo extraer el archivo:\n{str(e)}")
+
+
+
+
 
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
