@@ -67,7 +67,7 @@ class AESCBCWrapper:
         if isinstance(data, str):
             raise TypeError("❌ Se esperaba bytes, no str.")
 
-        print(f"📦 AESCBCWrapper.encrypt() recibido: {type(data)}")  # Debug
+        
 
         iv = secrets.token_bytes(16)
         padder = sym_padding.PKCS7(128).padder()
@@ -1688,12 +1688,8 @@ def cifrar_archivo_con_password(input_path, password, output_path):
         "data": base64.b64encode(encrypted_data).decode("utf-8") if isinstance(encrypted_data, bytes) else encrypted_data,
         "ext": ext
     }
-
-    print("📦 Tipos en result:")
-    for k, v in result.items():
-        print(f"{k}: {type(v)}")
-
-    assert all(not isinstance(v, bytes) for v in result.values()), "❌ Hay valores en bytes en result"
+    
+    
 
 
     # 7. Guardar a archivo JSON
