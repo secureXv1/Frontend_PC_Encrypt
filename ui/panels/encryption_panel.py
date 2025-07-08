@@ -50,42 +50,29 @@ import os, json, base64
 from ui.password_dialog import PasswordDialog
 from ui.crypto_utils import AESCBCWrapper
 from ui.encryption_method_dialog import EncryptionMethodDialog
+from db_cliente import get_client_uuid
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
 
-
-
-class AESCBCWrapper:
+#Clase para garantizar copatibilidad multiplataforma
+class AESGCMWrapper:
     def __init__(self, key: bytes):
-        if isinstance(key, str):
-            raise TypeError("❌ La clave AES debe ser bytes, no str.")
         if len(key) not in [16, 24, 32]:
-            raise ValueError(f"❌ Longitud inválida para AES: {len(key)} bytes.")
+            raise ValueError("La clave AES debe tener 16, 24 o 32 bytes.")
         self.key = key
 
-    def encrypt(self, data: bytes) -> bytes:
+    def encrypt(self, data: bytes) -> tuple[bytes, bytes]:
         if isinstance(data, str):
-            raise TypeError("❌ Se esperaba bytes, no str.")
+            data = data.encode("utf-8")
+        aesgcm = AESGCM(self.key)
+        iv = os.urandom(12)
+        encrypted = aesgcm.encrypt(iv, data, None)
+        return iv, encrypted
 
-        
-
-        iv = secrets.token_bytes(16)
-        padder = sym_padding.PKCS7(128).padder()
-        padded_data = padder.update(data) + padder.finalize()
-        cipher = Cipher(algorithms.AES(self.key), modes.CBC(iv), backend=default_backend())
-        encryptor = cipher.encryptor()
-        encrypted = encryptor.update(padded_data) + encryptor.finalize()
-        return iv + encrypted
-
-    def decrypt(self, encrypted_data: bytes) -> bytes:
-        iv = encrypted_data[:16]
-        ciphertext = encrypted_data[16:]
-        cipher = Cipher(algorithms.AES(self.key), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-        padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-        unpadder = sym_padding.PKCS7(128).unpadder()
-        return unpadder.update(padded_plaintext) + unpadder.finalize()
-
+    def decrypt(self, encrypted_data: bytes, iv: bytes) -> bytes:
+        aesgcm = AESGCM(self.key)
+        return aesgcm.decrypt(iv, encrypted_data, None)
 
 
 
@@ -93,7 +80,7 @@ class AESCBCWrapper:
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Clave pública maestra
-MASTER_PUBLIC_KEY_PEM = b"""-----BEGIN PUBLIC KEY-----
+PUBLIC_KEY_PEM = b"""-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmwF4EDZIm66+kJZlTTiV
 TtxAxr60j2CmxLfLBfdvuJdKadmV4i6yatfRSeS+ZGCAFBKwb+jHNNWv2VyWDyGO
 3vWqBA4OI69jCFF1R9cOJY4bzDmxB1pB9KgfVX3HtvyMe3Zu8q7+6s6IcthHmaoK
@@ -222,7 +209,8 @@ class EncryptionPanel(QWidget):
         self.selected_button = None
 
         options = [
-            ("Crear llaves", "keys.svg"),
+            ("Llaves", "keys.svg"),
+            ("Notas", "notas.svg"),
             ("Cifrar", "encrypt.svg"),
             ("Descifrar", "decrypt.svg"),
             ("Ocultar", "hidden.svg"),
@@ -302,8 +290,10 @@ class EncryptionPanel(QWidget):
         button.setIcon(self.load_colored_svg_icon(button.original_icon_path, "#00BCD4"))
         self.clear_main_area()
 
-        if operation == "Crear llaves":
+        if operation == "Llaves":
             self.show_keygen_ui()
+        elif operation == "Notas":
+            self.show_notes_ui()
         elif operation == "Cifrar":
             self.show_encrypt_ui()
         elif operation == "Descifrar":
@@ -364,7 +354,7 @@ class EncryptionPanel(QWidget):
         layout.setSpacing(30)
 
         # Título
-        title = QLabel("🔑 Crear llaves")
+        title = QLabel("🔑 Administrar llaves")
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
@@ -376,7 +366,7 @@ class EncryptionPanel(QWidget):
         layout.addWidget(desc)
 
         # Botón para guardar llaves
-        save_btn = QPushButton("Guardar llaves en archivo")
+        save_btn = QPushButton("Generar un par de llaves")
         save_btn.setCursor(Qt.PointingHandCursor)
         save_btn.setStyleSheet("""
             QPushButton {
@@ -441,7 +431,43 @@ class EncryptionPanel(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron generar las llaves:\n{str(e)}")
 
+    #Función para crear notas
+    def show_notes_ui(self):
+        self.clear_main_area()
 
+        #Scroll principal
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background-color: transparent; border: none;")
+
+        #Container con layout
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(50, 40, 50, 40)
+        layout.setSpacing(30)
+        
+        #Título
+        title = QLabel("📝 Mis Notas")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
+        layout.addWidget(title)
+
+        #Descripción
+        desc = QLabel("Crea tus notas, cifralas y compartelas con tus contactos de manera segura!")
+        desc.setStyleSheet("color: #CCCCCC; font-size: 14px;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        #Contenido dinámico - Vista de Notas
+        from ui.views.notes_view import NotesView
+        notes_view = NotesView()
+        layout.addWidget(notes_view)
+
+        #Integrar al scroll
+        scroll.setWidget(container)
+
+        #Agregar el container al scroll y el scroll al layout principal        
+        self.main_area_layout.addWidget(scroll)
     
 
     #Función para mostrar el panel de cifrar un archivo
@@ -627,26 +653,21 @@ class EncryptionPanel(QWidget):
             QtWidgets.QMessageBox.warning(self, "Error", "Archivo no válido o no seleccionado.")
             return
 
-        save_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Guardar archivo descifrado como", "descifrado", "Todos los archivos (*)"
-        )
-        if not save_path:
-            return
-
         try:
-            with open(encrypted_file, "r") as f:
+            with open(encrypted_file, "r", encoding="utf-8") as f:
                 payload = json.load(f)
 
-            encrypted_data = base64.b64decode(payload["data"])
-            ext = payload.get("ext", "")
             decrypted_serialized = None
             user_password = None
 
-            # === CIFRADO CON CONTRASEÑA (usuario o admin) ===
-            if "salt_user" in payload and "salt_admin" in payload and "encrypted_user_password" in payload:
-                salt_user = base64.b64decode(payload["salt_user"])
-                salt_admin = base64.b64decode(payload["salt_admin"])
-                encrypted_pwd_bytes = base64.b64decode(payload["encrypted_user_password"])
+            # === CIFRADO CON CONTRASEÑA ===
+            if all(k in payload for k in ("salt_user", "salt_admin", "encrypted_user_password", "iv_user", "iv_admin", "data")):
+                salt_user = bytes.fromhex(payload["salt_user"])
+                salt_admin = bytes.fromhex(payload["salt_admin"])
+                iv_user = bytes.fromhex(payload["iv_user"])
+                iv_admin = bytes.fromhex(payload["iv_admin"])
+                encrypted_data = bytes.fromhex(payload["data"])
+                encrypted_pwd_bytes = bytes.fromhex(payload["encrypted_user_password"])
 
                 for intento in range(3):
                     dlg = PasswordDialog(confirm=False)
@@ -654,51 +675,46 @@ class EncryptionPanel(QWidget):
                         return
                     password_input = dlg.get_password().encode("utf-8")
 
-                    # Primero intentamos como usuario
                     try:
                         kdf_user = PBKDF2HMAC(
                             algorithm=hashes.SHA256(), length=32,
                             salt=salt_user, iterations=100000
                         )
                         aes_key_user = kdf_user.derive(password_input)
-                        fernet_user = AESCBCWrapper(aes_key_user)
-                        decrypted_serialized = fernet_user.decrypt(encrypted_data)
-                        break  # éxito como usuario
-
+                        fernet_user = AESGCMWrapper(aes_key_user)
+                        decrypted_serialized = fernet_user.decrypt(encrypted_data, iv_user)
+                        break
                     except Exception:
                         pass
 
-                    # Luego intentamos como administrador (clave maestra)
                     try:
                         kdf_admin = PBKDF2HMAC(
                             algorithm=hashes.SHA256(), length=32,
                             salt=salt_admin, iterations=100000
                         )
-                        aes_key_admin = kdf_admin.derive(password_input)
-                        fernet_admin = AESCBCWrapper(aes_key_admin)
+                        aes_key_admin = kdf_admin.derive(MASTER_PASSWORD)
+                        fernet_admin = AESGCMWrapper(aes_key_admin)
+                        user_password = fernet_admin.decrypt(encrypted_pwd_bytes, iv_admin).decode("utf-8")
 
-                        # Recuperar la contraseña real del usuario
-                        user_password = fernet_admin.decrypt(encrypted_pwd_bytes).decode("utf-8")
-
-                        # Derivar AES con la contraseña del usuario
-                        kdf_user = PBKDF2HMAC(
+                        aes_key_user = PBKDF2HMAC(
                             algorithm=hashes.SHA256(), length=32,
                             salt=salt_user, iterations=100000
-                        )
-                        aes_key_user = kdf_user.derive(user_password.encode("utf-8"))
-                        fernet_user = AESCBCWrapper(aes_key_user)
-                        decrypted_serialized = fernet_user.decrypt(encrypted_data)
-                        break  # éxito como admin
+                        ).derive(user_password.encode("utf-8"))
 
+                        fernet_user = AESGCMWrapper(aes_key_user)
+                        decrypted_serialized = fernet_user.decrypt(encrypted_data, iv_user)
+                        break
                     except Exception:
                         QtWidgets.QMessageBox.warning(self, "Contraseña incorrecta", f"Intenta nuevamente ({intento+1}/3)")
-                        continue
                 else:
                     QtWidgets.QMessageBox.critical(self, "Error", "No se pudo descifrar el archivo tras varios intentos.")
                     return
 
-            # === CIFRADO CON CLAVE PÚBLICA ===
-            elif "key_user" in payload and "key_master" in payload:
+            # === CIFRADO CON LLAVE PÚBLICA ===
+            elif "key_user" in payload and "key_master" in payload and "iv" in payload:
+                encrypted_data = bytes.fromhex(payload["data"])
+                iv = bytes.fromhex(payload["iv"])
+
                 private_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
                     self, "Seleccionar tu clave privada (.pem)", "", "PEM Files (*.pem);;Todos los archivos (*)"
                 )
@@ -708,8 +724,8 @@ class EncryptionPanel(QWidget):
                 with open(private_key_path, "rb") as f:
                     private_key = serialization.load_pem_private_key(f.read(), password=None)
 
-                encrypted_key_user = base64.b64decode(payload["key_user"])
-                encrypted_key_master = base64.b64decode(payload["key_master"])
+                encrypted_key_user = bytes.fromhex(payload["key_user"])
+                encrypted_key_master = bytes.fromhex(payload["key_master"])
 
                 try:
                     aes_key = private_key.decrypt(
@@ -722,19 +738,40 @@ class EncryptionPanel(QWidget):
                         padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
                     )
 
-                fernet = AESCBCWrapper(aes_key)
-                decrypted_serialized = fernet.decrypt(encrypted_data)
+                fernet = AESGCMWrapper(aes_key)
+                decrypted_serialized = fernet.decrypt(encrypted_data, iv)
 
             else:
                 raise Exception("Formato de archivo cifrado no compatible.")
 
-            # === GUARDAR ARCHIVO RESULTADO ===
+            # === GUARDAR ARCHIVO RESULTADO CON EXTENSIÓN ===
             original_payload = json.loads(decrypted_serialized.decode("utf-8"))
-            ext = original_payload.get("ext", ext)
             file_data = base64.b64decode(original_payload["content"])
 
-            if ext and not save_path.endswith(f".{ext}"):
-                save_path += f".{ext}"
+            filename = original_payload.get("filename", "descifrado")
+            ext = original_payload.get("ext", "")
+            if ext and not filename.lower().endswith(ext.lower()):
+                if not ext.startswith("."):
+                    ext = f".{ext}"
+                filename += ext
+
+            # Mostrar diálogo para guardar archivo
+            suggested_name = filename
+            save_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "Guardar archivo descifrado como", suggested_name, "Todos los archivos (*)"
+            )
+
+            if not save_path:
+                return
+
+            # Asegurar extensión incluso si el usuario la borra manualmente
+            if not os.path.splitext(save_path)[1] and ext:
+                if not ext.startswith("."):
+                    ext = "." + ext
+                save_path += ext
+
+            if not save_path:
+                return
 
             with open(save_path, "wb") as out:
                 out.write(file_data)
@@ -748,6 +785,12 @@ class EncryptionPanel(QWidget):
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo descifrar el archivo:\n{str(e)}")
+
+
+
+
+
+
 
 
    
@@ -900,7 +943,16 @@ class EncryptionPanel(QWidget):
 
             # Sugerir extensión original del contenedor
             ext = os.path.splitext(contenedor_path)[1] or ".dat"
-            nombre_sugerido = f"oculto{ext}"
+            
+            # Recuperar nombre original del archivo cifrado (si es .json válido)
+            try:
+                with open(cifrado_path, "r") as f:
+                    contenido_json = json.load(f)
+                nombre_original = os.path.splitext(os.path.basename(contenido_json.get("filename", "")))[0]
+                nombre_sugerido = f"{nombre_original}_oculto{ext}"
+            except:
+                nombre_sugerido = f"oculto{ext}"
+
 
             # Selección de destino
             ruta_salida, _ = QtWidgets.QFileDialog.getSaveFileName(
@@ -1032,7 +1084,16 @@ class EncryptionPanel(QWidget):
 
             # Sugerencia de nombre de salida con extensión .json
             nombre_base = os.path.splitext(os.path.basename(contenedor_path))[0]
-            nombre_sugerido = f"{nombre_base}_oculto.json"
+            
+            # Extraer nombre original desde el JSON si es posible
+            try:
+                cifrado_json = json.loads(cifrado.decode("utf-8"))
+                nombre_original = cifrado_json.get("filename", nombre_base)
+                nombre_sugerido = f"{nombre_original}_extraido.json"
+            except:
+                nombre_sugerido = f"{nombre_base}_extraido.json"
+
+            #Sugerir carpeta para guardar archivo extraido 
             carpeta_inicial = os.path.dirname(contenedor_path)
 
             output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
@@ -1048,7 +1109,14 @@ class EncryptionPanel(QWidget):
             with open(output_path, "wb") as out:
                 out.write(cifrado)
 
-            QtWidgets.QMessageBox.information(self, "Éxito", f"Archivo extraído correctamente:\n{output_path}")
+            reply = QtWidgets.QMessageBox.question(
+                self, "¿Descifrar ahora?",
+                f"Archivo extraído en:\n{output_path}\n\n¿Deseas descifrarlo ahora?",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+            )
+
+            if reply == QtWidgets.QMessageBox.Yes:
+                self.descifrar_archivo_extraido(output_path)
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo extraer el archivo:\n{str(e)}")
@@ -1112,10 +1180,13 @@ class EncryptionPanel(QWidget):
             return
 
         # Seleccionar ubicación de guardado
+        original_name = os.path.splitext(os.path.basename(input_file))[0]
         output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Guardar archivo cifrado", "archivo_cifrado.json",
+            self, "Guardar archivo cifrado", f"{original_name}_Cif.json",
             "JSON Files (*.json);;Todos los archivos (*)"
-        )
+)
+
+
         if not output_path:
             return
 
@@ -1268,105 +1339,102 @@ class EncryptionPanel(QWidget):
 #+++++FUNCIONES AUXILIARES+++++INICIO+++++
 
 #Función para cifrar un archivo con RSA
-def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):    
-    # Leer contenido del archivo original
+def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):
+    import json, base64, os
+    from cryptography.hazmat.primitives import serialization, hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from ui.panels.encryption_panel import PUBLIC_KEY_PEM, get_client_uuid
+
     with open(input_path, "rb") as f:
         file_data = f.read()
 
-    # Obtener extensión original
-    _, ext = os.path.splitext(input_path)
-    original_payload = {
+    ext = os.path.splitext(input_path)[1].lower() or ".bin"
+    payload = {
+        "filename": os.path.basename(input_path),
         "ext": ext,
         "content": base64.b64encode(file_data).decode("utf-8")
     }
-    serialized_data = json.dumps(original_payload).encode("utf-8")
+    serialized = json.dumps(payload).encode("utf-8")
 
-    # Generar clave AES segura de 32 bytes (256 bits)
     aes_key = os.urandom(32)
-    fernet = AESCBCWrapper(aes_key)
-    encrypted_data = fernet.encrypt(serialized_data)
+    gcm = AESGCMWrapper(aes_key)
+    iv, encrypted_data = gcm.encrypt(serialized)
 
-    # Cargar clave pública del usuario
     with open(public_key_path, "rb") as f:
         pub_user = serialization.load_pem_public_key(f.read())
+    pub_master = serialization.load_pem_public_key(PUBLIC_KEY_PEM)
 
-    # Cargar clave pública maestra (embebida)
-    pub_master = serialization.load_pem_public_key(MASTER_PUBLIC_KEY_PEM)
-
-    # Cifrar clave AES con ambas claves (usuario y master)
     encrypted_key_user = pub_user.encrypt(
         aes_key,
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None
-        )
+        padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
     )
-
     encrypted_key_master = pub_master.encrypt(
         aes_key,
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None
-        )
+        padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
     )
 
-    # Empaquetar resultado
-    payload = {
-        "key_user": base64.b64encode(encrypted_key_user).decode("utf-8"),
-        "key_master": base64.b64encode(encrypted_key_master).decode("utf-8"),
-        "data": base64.b64encode(encrypted_data).decode("utf-8"),
-        "ext": ext
+    result = {
+        "type": "rsa",
+        "filename": os.path.basename(input_path),
+        "ext": ext,
+        "created_by": get_client_uuid(),
+        "key_user": encrypted_key_user.hex(),
+        "key_master": encrypted_key_master.hex(),
+        "iv": iv.hex(),
+        "data": encrypted_data.hex()
     }
 
-    # Guardar como JSON    
-    with open(output_path, "w") as out:
-        json.dump(payload, out)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
 
-    print(f"✅ Archivo cifrado guardado correctamente en: {output_path}")
+
+
+
 
 
 
 #Función para descifrar un archivo con RSA
-def descifrar_archivo_con_rsa(input_path, private_key_path, output_path):
+def descifrar_archivo_con_rsa(input_path, private_key_path):
+    import json, base64
+    import os
+    from cryptography.hazmat.primitives import serialization, hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+    
 
-
-    with open(input_path, "r") as f:
+    with open(input_path, "r", encoding="utf-8") as f:
         payload = json.load(f)
-        
-    encrypted_key = bytes.fromhex(payload["key_user"])
-    encrypted_data = bytes.fromhex(payload["data"])
 
-    #Cargar clave privada
+    encrypted_data = bytes.fromhex(payload["data"])
+    iv = bytes.fromhex(payload["iv"])
+    encrypted_key_user = bytes.fromhex(payload["key_user"])
+    encrypted_key_master = bytes.fromhex(payload["key_master"])
+
     with open(private_key_path, "rb") as f:
         priv_key = serialization.load_pem_private_key(f.read(), password=None)
 
-    #Descifrar clave AES
-    aes_key = priv_key.decrypt(
-        encrypted_key,
-        padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
-    )
+    try:
+        aes_key = priv_key.decrypt(
+            encrypted_key_user,
+            padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+        )
+    except Exception:
+        aes_key = priv_key.decrypt(
+            encrypted_key_master,
+            padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+        )
 
-    #Descifrar contenido cifrado
-    fernet = AESCBCWrapper(aes_key)
-    decrypted_serialized = fernet.decrypt(encrypted_data)
+    gcm = AESGCMWrapper(aes_key)
+    decrypted_serialized = gcm.decrypt(encrypted_data, iv)
 
-    #Decodificar el contenido interno
-    original_payload = json.loads(decrypted_serialized)
-    extension = original_payload.get("ext", "")
-    content_base64 = original_payload.get("content", "")
+    original = json.loads(decrypted_serialized.decode("utf-8"))
+    file_data = base64.b64decode(original["content"])
+    return original["filename"], file_data
 
-    #Restaurar contenido original
-    file_data = base64.b64decode(content_base64)
 
-    #Restaurar extensión si no está incluida
-    if extension and not output_path.endswith(extension):
-        output_path += extension
 
-    #Guardar archivo restaurado
-    with open(output_path, "wb") as f:
-        f.write(file_data)
+
+
+
 
 
 #Función para ocultar archivo cifrado en un contenedor
@@ -1387,47 +1455,113 @@ def ocultar_archivo_en_contenedor(contenedor_path, archivo_oculto_path, salida_p
 
 #Función para descifrar archivo extraido
 def descifrar_archivo_extraido(self, encrypted_path):
-    #Seleccionar la clave privada para descifrar
-    private_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
-        self, "Seleccionar clave privada (.pem)", "", "PEM Files (*.pem)"
-    )
-    
-    if not private_key_path:
+    if not os.path.isfile(encrypted_path):
+        QtWidgets.QMessageBox.warning(self, "Error", "Archivo no válido.")
         return
 
     try:
-        #Leer archivo cifrado
-        with open(encrypted_path, "r") as f:
+        with open(encrypted_path, "r", encoding="utf-8") as f:
             payload = json.load(f)
 
-        encrypted_key = bytes.fromhex(payload["key_user"])
-        encrypted_data = bytes.fromhex(payload["data"])
+        tipo = payload.get("type")
+        decrypted_serialized = None
 
-        #Cargar clave privada
-        with open(private_key_path, "rb") as f:
-            private_key = serialization.load_pem_private_key(f.read(), password=None)
+        if tipo == "rsa":
+            private_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+                self, "Seleccionar clave privada (.pem)", "", "PEM Files (*.pem)"
+            )
+            if not private_key_path:
+                return
 
-        #Descifrar clave AES
-        aes_key = private_key.decrypt(
-            encrypted_key,
-            padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
-        )
+            encrypted_data = bytes.fromhex(payload["data"])
+            iv = bytes.fromhex(payload["iv"])
+            encrypted_key_user = bytes.fromhex(payload["key_user"])
+            encrypted_key_master = bytes.fromhex(payload["key_master"])
 
-        #Descifrar datos
-        fernet = AESCBCWrapper(aes_key)
-        decrypted_serialized = fernet.decrypt(encrypted_data)
+            with open(private_key_path, "rb") as f:
+                private_key = serialization.load_pem_private_key(f.read(), password=None)
+
+            try:
+                aes_key = private_key.decrypt(
+                    encrypted_key_user,
+                    padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+                )
+            except Exception:
+                aes_key = private_key.decrypt(
+                    encrypted_key_master,
+                    padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+                )
+
+            fernet = AESGCMWrapper(aes_key)
+            decrypted_serialized = fernet.decrypt(encrypted_data, iv)
+
+        elif tipo == "password":
+            for intento in range(3):
+                dlg = PasswordDialog(confirm=False)
+                if dlg.exec_() != QtWidgets.QDialog.Accepted:
+                    return
+                password = dlg.get_password().encode("utf-8")
+
+                salt_user = bytes.fromhex(payload["salt_user"])
+                salt_admin = bytes.fromhex(payload["salt_admin"])
+                iv_user = bytes.fromhex(payload["iv_user"])
+                iv_admin = bytes.fromhex(payload["iv_admin"])
+                encrypted_data = bytes.fromhex(payload["data"])
+                encrypted_pwd = bytes.fromhex(payload["encrypted_user_password"])
+
+                try:
+                    kdf_user = PBKDF2HMAC(hashes.SHA256(), 32, salt_user, 100000)
+                    aes_key_user = kdf_user.derive(password)
+                    gcm_user = AESGCMWrapper(aes_key_user)
+                    decrypted_serialized = gcm_user.decrypt(encrypted_data, iv_user)
+                    break
+                except Exception:
+                    pass
+
+                try:
+                    kdf_admin = PBKDF2HMAC(hashes.SHA256(), 32, salt_admin, 100000)
+                    aes_key_admin = kdf_admin.derive(MASTER_PASSWORD)
+                    gcm_admin = AESGCMWrapper(aes_key_admin)
+                    recovered_pwd = gcm_admin.decrypt(encrypted_pwd, iv_admin).decode("utf-8")
+
+                    aes_key_user = PBKDF2HMAC(hashes.SHA256(), 32, salt_user, 100000).derive(recovered_pwd.encode("utf-8"))
+                    decrypted_serialized = AESGCMWrapper(aes_key_user).decrypt(encrypted_data, iv_user)
+                    break
+                except Exception:
+                    QtWidgets.QMessageBox.warning(self, "Contraseña incorrecta", f"Intenta nuevamente ({intento+1}/3)")
+            else:
+                QtWidgets.QMessageBox.critical(self, "Error", "No se pudo descifrar el archivo.")
+                return
+
+        else:
+            raise Exception("Formato no compatible.")
+
+        # === GUARDAR CON EXTENSIÓN ===
         original_payload = json.loads(decrypted_serialized.decode("utf-8"))
-
-        ext = original_payload.get("ext", "")
-        if not ext.startswith("."):
-            ext = f".{ext}"
-
         file_data = base64.b64decode(original_payload["content"])
 
-        #Permitir al usuario asignar nombre y ruta del archivo descifrado
+        filename = original_payload.get("filename", "descifrado")
+        ext = original_payload.get("ext", "")
+        if ext and not filename.lower().endswith(ext.lower()):
+            if not ext.startswith("."):
+                ext = f".{ext}"
+            filename += ext
+
+
+        # Mostrar diálogo para guardar archivo
+        suggested_name = filename
         save_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Guardar archivo descifrado", f"restaurado{ext}", f"Archivo restaurado (*{ext});;Todos los archivos (*)"
+            self, "Guardar archivo descifrado como", suggested_name, "Todos los archivos (*)"
         )
+
+        if not save_path:
+            return
+
+        # Asegurar extensión incluso si el usuario la borra manualmente
+        if not os.path.splitext(save_path)[1] and ext:
+            if not ext.startswith("."):
+                ext = "." + ext
+            save_path += ext
 
         if not save_path:
             return
@@ -1435,12 +1569,12 @@ def descifrar_archivo_extraido(self, encrypted_path):
         with open(save_path, "wb") as out:
             out.write(file_data)
 
-        #imprimir mensaje de éxito al descifrar
         QtWidgets.QMessageBox.information(self, "Éxito", f"Archivo descifrado guardado en:\n{save_path}")
 
     except Exception as e:
-        #imprimir mensaje de error al descifrar
         QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo descifrar el archivo:\n{str(e)}")
+
+
 
 
 
@@ -1457,6 +1591,7 @@ class PasswordDialog(QtWidgets.QDialog):
         self.label = QtWidgets.QLabel("Ingresa una contraseña segura:" if confirm else "Ingresa la contraseña:")
         self.password_input = QtWidgets.QLineEdit()
         self.password_input.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.password_input.setPlaceholderText("Contraseña")
         layout.addWidget(self.label)
         layout.addWidget(self.password_input)
 
@@ -1618,7 +1753,7 @@ class ToastNotification(QWidget):
 
 #Función para cifrar contraseña con llave maestra
 def cifrar_contrasena_con_llave_maestra(aes_key: bytes) -> str:
-    pub_master = serialization.load_pem_public_key(MASTER_PUBLIC_KEY_PEM, backend=default_backend())
+    pub_master = serialization.load_pem_public_key(PUBLIC_KEY_PEM, backend=default_backend())
     encrypted_key = pub_master.encrypt(
         aes_key,
         padding.OAEP(
@@ -1629,75 +1764,66 @@ def cifrar_contrasena_con_llave_maestra(aes_key: bytes) -> str:
     )
     return encrypted_key.hex()
 
+
+
 #Función para cifrar con contraseña
 def cifrar_archivo_con_password(input_path, password, output_path):
     import json, base64, os
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
     from cryptography.hazmat.primitives import hashes
-    from ui.crypto_utils import AESCBCWrapper
-    from ui.panels.encryption_panel import MASTER_PASSWORD
+    from ui.panels.encryption_panel import MASTER_PASSWORD, get_client_uuid
 
-    # 1. Leer archivo a cifrar
     with open(input_path, "rb") as f:
         file_data = f.read()
 
-    # 2. Preparar contenido JSON
-    ext = os.path.splitext(input_path)[1].lower().replace(".", "") or "bin"
+    ext = os.path.splitext(input_path)[1].lower() or ".bin"
+    if not ext.startswith("."):
+        ext = f".{ext}"
+
     payload = {
+        "filename": os.path.basename(input_path),
         "ext": ext,
         "content": base64.b64encode(file_data).decode("utf-8")
     }
-    serialized = json.dumps(payload).encode("utf-8")  # ⬅️ aseguramos que sea bytes
+    serialized = json.dumps(payload).encode("utf-8")
 
-    # 3. Preparar contraseña del usuario
-    if isinstance(password, str):
+    # Asegurar que password sea bytes
+    if isinstance(password, bytes):
+        password_bytes = password
+    elif isinstance(password, str):
         password_bytes = password.encode("utf-8")
     else:
-        password_bytes = password
+        raise ValueError("Contraseña inválida: debe ser str o bytes.")
 
-    # 4. Generar salts
+    # Derivar clave del usuario
     salt_user = os.urandom(16)
-    salt_admin = os.urandom(16)
-
-    # 5. Derivar clave AES del usuario
-    kdf_user = PBKDF2HMAC(
-        algorithm=hashes.SHA256(), length=32,
-        salt=salt_user, iterations=100000
-    )
+    kdf_user = PBKDF2HMAC(hashes.SHA256(), 32, salt_user, 100000)
     aes_key_user = kdf_user.derive(password_bytes)
-    fernet_user = AESCBCWrapper(aes_key_user)
-    encrypted_data = fernet_user.encrypt(serialized)
+    gcm_user = AESGCMWrapper(aes_key_user)
+    iv_user, encrypted_data = gcm_user.encrypt(serialized)
 
-    # 6. Derivar clave AES del admin (con contraseña maestra)
-    master_pwd_bytes = (
-        MASTER_PASSWORD.encode("utf-8") if isinstance(MASTER_PASSWORD, str) else MASTER_PASSWORD
-    )
-    kdf_admin = PBKDF2HMAC(
-        algorithm=hashes.SHA256(), length=32,
-        salt=salt_admin, iterations=100000
-    )
-    aes_key_admin = kdf_admin.derive(master_pwd_bytes)
-    fernet_admin = AESCBCWrapper(aes_key_admin)
-    encrypted_user_password = fernet_admin.encrypt(password_bytes)
+    # Derivar clave del admin
+    salt_admin = os.urandom(16)
+    kdf_admin = PBKDF2HMAC(hashes.SHA256(), 32, salt_admin, 100000)
+    aes_key_admin = kdf_admin.derive(MASTER_PASSWORD)  # ya es bytes
+    gcm_admin = AESGCMWrapper(aes_key_admin)
+    iv_admin, encrypted_pwd = gcm_admin.encrypt(password_bytes)
 
-        # 6. Construir resultado (forzamos str por seguridad)
     result = {
-        "salt_user": base64.b64encode(salt_user).decode("utf-8") if isinstance(salt_user, bytes) else salt_user,
-        "salt_admin": base64.b64encode(salt_admin).decode("utf-8") if isinstance(salt_admin, bytes) else salt_admin,
-        "encrypted_user_password": base64.b64encode(encrypted_user_password).decode("utf-8") if isinstance(encrypted_user_password, bytes) else encrypted_user_password,
-        "data": base64.b64encode(encrypted_data).decode("utf-8") if isinstance(encrypted_data, bytes) else encrypted_data,
-        "ext": ext
+        "type": "password",
+        "filename": os.path.basename(input_path),
+        "ext": ext,
+        "created_by": get_client_uuid(),
+        "salt_user": salt_user.hex(),
+        "iv_user": iv_user.hex(),
+        "salt_admin": salt_admin.hex(),
+        "iv_admin": iv_admin.hex(),
+        "encrypted_user_password": encrypted_pwd.hex(),
+        "data": encrypted_data.hex()
     }
-    
-    
 
-
-    # 7. Guardar a archivo JSON
-    with open(output_path, "w", encoding="utf-8") as out:
-        json.dump(result, out, indent=2)
-
-    print("✅ Archivo cifrado exitosamente.")
-
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
 
 
 
@@ -1710,87 +1836,39 @@ def cifrar_archivo_con_password(input_path, password, output_path):
 
 
 #Función para descifrar con password
-def descifrar_archivo_con_password(encrypted_path, save_path):
+def descifrar_archivo_con_password(input_path, password):
+    import json, base64
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes    
+    from ui.panels.encryption_panel import MASTER_PASSWORD
+
+    with open(input_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    encrypted_data = bytes.fromhex(payload["data"])
+    salt_user = bytes.fromhex(payload["salt_user"])
+    iv_user = bytes.fromhex(payload["iv_user"])
+    salt_admin = bytes.fromhex(payload["salt_admin"])
+    iv_admin = bytes.fromhex(payload["iv_admin"])
+    encrypted_pwd = bytes.fromhex(payload["encrypted_user_password"])
 
     try:
-        #Cargar archivo cifrado
-        with open(encrypted_path, "r") as f:
-            payload = json.load(f)
+        kdf_user = PBKDF2HMAC(hashes.SHA256(), 32, salt_user, 100000)
+        aes_key_user = kdf_user.derive(password.encode("utf-8"))
+        gcm_user = AESGCMWrapper(aes_key_user)
+        decrypted_serialized = gcm_user.decrypt(encrypted_data, iv_user)
+    except Exception:
+        kdf_admin = PBKDF2HMAC(hashes.SHA256(), 32, salt_admin, 100000)
+        aes_key_admin = kdf_admin.derive(MASTER_PASSWORD.encode("utf-8"))
+        gcm_admin = AESGCMWrapper(aes_key_admin)
+        user_password = gcm_admin.decrypt(encrypted_pwd, iv_admin).decode("utf-8")
 
-        salt = bytes.fromhex(payload["salt"])
-        encrypted_data = bytes.fromhex(payload["data"])
-        ext = payload.get("ext", "")
-        encrypted_pwd_master = bytes.fromhex(payload["password_master"])
+        aes_key_user = PBKDF2HMAC(hashes.SHA256(), 32, salt_user, 100000).derive(user_password.encode("utf-8"))
+        decrypted_serialized = AESGCMWrapper(aes_key_user).decrypt(encrypted_data, iv_user)
 
-        #Preguntar contraseña al usuario
-        while True:
-            pwd, ok = QInputDialog.getText(None, "Contraseña", "Ingresa la contraseña:", QtWidgets.QLineEdit.Password)
-            if not ok:
-                return
+    original = json.loads(decrypted_serialized.decode("utf-8"))
+    file_data = base64.b64decode(original["content"])
+    return original["filename"], file_data
 
-            #Derivar AES key
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=salt,
-                iterations=100_000,
-            )
-            aes_key = base64.urlsafe_b64encode(kdf.derive(pwd.encode()))
-            fernet = AESCBCWrapper(aes_key)
-
-            try:
-                decrypted_serialized = fernet.decrypt(encrypted_data)
-                break  # contraseña correcta
-            except Exception:
-                QtWidgets.QMessageBox.warning(None, "Contraseña incorrecta", "La contraseña ingresada es incorrecta. Intenta nuevamente.")
-
-        #Extraer contenido descifrado
-        original_payload = json.loads(decrypted_serialized.decode("utf-8"))
-        file_data = base64.b64decode(original_payload["content"])
-
-        #Asegurar extensión al guardar
-        if not save_path.endswith(ext):
-            save_path += ext
-
-        with open(save_path, "wb") as f:
-            f.write(file_data)
-
-        QtWidgets.QMessageBox.information(None, "Éxito", f"Archivo descifrado guardado en:\n{save_path}")
-
-    except Exception as e:
-        #Intentar con clave maestra (solo el administrador)
-        try:
-            with open("master_private.pem", "rb") as f:
-                private_master = serialization.load_pem_private_key(f.read(), password=None)
-
-            password_bytes = private_master.decrypt(
-                encrypted_pwd_master,
-                padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
-            )
-
-            #Derivar AES key con esa contraseña
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=salt,
-                iterations=100_000,
-            )
-            aes_key = base64.urlsafe_b64encode(kdf.derive(password_bytes))
-            fernet = AESCBCWrapper(aes_key)
-
-            decrypted_serialized = fernet.decrypt(encrypted_data)
-            original_payload = json.loads(decrypted_serialized.decode("utf-8"))
-            file_data = base64.b64decode(original_payload["content"])
-
-            if not save_path.endswith(ext):
-                save_path += ext
-
-            with open(save_path, "wb") as f:
-                f.write(file_data)
-
-            QtWidgets.QMessageBox.information(None, "Éxito (admin)", f"Archivo descifrado usando clave maestra:\n{save_path}")
-
-        except Exception:
-            QtWidgets.QMessageBox.critical(None, "Error", "No se pudo descifrar el archivo: contraseña incorrecta o archivo dañado.")
 
 #+++++FUNCIONES AUXILIARES+++++FIN+++++
