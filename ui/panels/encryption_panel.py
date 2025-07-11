@@ -32,7 +32,7 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtWidgets import QInputDialog
 from PyQt5.QtWidgets import QLabel, QHBoxLayout, QWidget
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import QTimer, Qt, QSize, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt5.QtCore import QTimer, Qt, QSize, pyqtSignal, QPropertyAnimation, QEasingCurve, QPoint
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QImage, QColor
 from PyQt5.QtWidgets import QComboBox
@@ -42,7 +42,7 @@ from PyQt5.QtWidgets import QInputDialog
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtGui import QPainter, QImage, QDragEnterEvent, QDropEvent
-from PyQt5.QtWidgets import QFileDialog, QMessageBox, QInputDialog
+from PyQt5.QtWidgets import QFileDialog, QMessageBox, QInputDialog, QMenu, QAction
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -52,6 +52,8 @@ from ui.crypto_utils import AESCBCWrapper
 from ui.encryption_method_dialog import EncryptionMethodDialog
 from db_cliente import get_client_uuid
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from functools import partial
+import shutil
 
 
 
@@ -364,24 +366,33 @@ class EncryptionPanel(QWidget):
         desc.setStyleSheet("color: #CCCCCC; font-size: 14px;")
         layout.addWidget(desc)
 
-        # Botón para guardar llaves
-        save_btn = QPushButton("Generar un par de llaves")
-        save_btn.setCursor(Qt.PointingHandCursor)
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #00BCD4;
-                color: white;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #00a5bb;
-            }
-        """)
-        save_btn.clicked.connect(self.on_create_keys)
-        layout.addWidget(save_btn)
+        #Contenedor de botones de acción (crear/importar)
+        icon_buttons_layout = QHBoxLayout()
+        icon_buttons_layout.setSpacing(40)
+        icon_buttons_layout.setAlignment(Qt.AlignCenter)
+
+        #Botón de crear llaves
+        create_btn = QPushButton()
+        create_btn.setIcon(QIcon("assets/icons/create.svg"))
+        create_btn.setIconSize(QSize(38 , 38))
+        create_btn.setCursor(Qt.PointingHandCursor)
+        create_btn.setToolTip("Crear")
+        create_btn.setStyleSheet("QPushButton { backgroud-color: transparent; border: none; }")
+        create_btn.clicked.connect(self.on_create_keys)
+        icon_buttons_layout.addWidget(create_btn)
+
+        #Botón de importar llaves
+        import_btn = QPushButton()
+        import_btn.setIcon(QIcon("assets/icons/import.svg"))
+        import_btn.setIconSize(QSize(38, 38))
+        import_btn.setCursor(Qt.PointingHandCursor)
+        import_btn.setToolTip("Importar")
+        import_btn.setStyleSheet("QPushButton { background-color: transparent; border: none; }")
+        import_btn.clicked.connect(self.import_key_file)
+        icon_buttons_layout.addWidget(import_btn)
+
+        layout.addLayout(icon_buttons_layout)
+
 
         # Lista de llaves
         self.keys_list_widget = QListWidget()
@@ -485,7 +496,30 @@ class EncryptionPanel(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron generar las llaves:\n{str(e)}")
 
-    #Función para leer las llaves para mostrarlas en el panel
+    #Función para importar una llave existente
+    def import_key_file(self):
+        try:
+            file_path, _ =QFileDialog.getOpenFileName(self, "Seleccionar archivo de llave", "", "PEM Files(*.pem)")
+            if not file_path:
+                return
+            
+            filename = os.path.basename(file_path)
+            dest_dir = self.get_keys_dir()
+            dest_path = os.path.join(dest_dir, filename)
+
+            #Verifica si ya existe
+            if os.path.exists(dest_path):
+                QMessageBox.warning(self, "Ya existe", f"Ya existe una llave llamada:\n{filename}")
+                return
+
+            shutil.copy(file_path, dest_path)
+            QMessageBox.information(self, "Importado", f"Archivo importado correctamente:\n{filename}")
+            self.load_keys()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo importar la llave:\n{str(e)}")
+
+    #Función para leer las llaves para mostrarlas y administrarlas en el panel
     def load_keys(self):
         self.keys_list_widget.clear()
         keys_dir = self.get_keys_dir()
@@ -500,99 +534,121 @@ class EncryptionPanel(QWidget):
                 border-radius: 8px;
                 outline: none;
             }
-
             QListWidget::item {
                 background: transparent;
                 border: none;
+                padding: 8px;
                 margin: 4px;
                 border-radius: 8px;
             }
-
             QListWidget::item:selected {
                 background-color: #444444;
                 color: white;
                 border-radius: 8px;
             }
-
             QListWidget::item:hover {
                 background-color: #3a3a3a;
                 color: white;
                 border-radius: 8px;
             }
-
             QListWidget::item:focus {
                 border: none;
                 outline: none;
             }
         """)
 
-        for fname in sorted(os.listdir(keys_dir)):
-            if fname.endswith(".pem"):
-                item = QListWidgetItem()
-                widget = QWidget()
+        key_files = sorted(f for f in os.listdir(keys_dir) if f.endswith(".pem"))
+        grouped = {}
+        for fname in key_files:
+            if "_private.pem" in fname:
+                base = fname.replace("_private.pem", "")
+                grouped.setdefault(base, {})["private"] = fname
+            elif "_public.pem" in fname:
+                base = fname.replace("_public.pem", "")
+                grouped.setdefault(base, {})["public"] = fname
 
-                # Layout horizontal centrado
-                layout = QHBoxLayout()
-                layout.setContentsMargins(20, 8, 20, 8)
-                layout.setSpacing(20)
-                layout.setAlignment(Qt.AlignVCenter)
+        for base, files in grouped.items():
+            item = QListWidgetItem()
+            widget = QWidget()
+            widget.setMinimumHeight(56)
+            layout = QHBoxLayout()
+            layout.setContentsMargins(20, 6, 20, 6)
+            layout.setSpacing(30)
+            layout.setAlignment(Qt.AlignVCenter)
 
-                # 🏷 Nombre de la llave
-                label = QLabel(fname)
-                label.setStyleSheet("color: white; font-size: 13px; padding-bottom: 2px;")
-                label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                layout.addWidget(label, alignment=Qt.AlignVCenter)
+            # Icono
+            icon_label = QLabel()
+            icon_label.setPixmap(QPixmap("assets/icons/key-set.svg").scaled(26, 26, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            layout.addWidget(icon_label)
 
-                # 📤 Botón Exportar
-                export_btn = QPushButton("Exportar")
-                export_btn.setMinimumHeight(36)
-                export_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #6b6969;
-                        color: white;
-                        padding: 6px 16px;
-                        border-radius: 6px;
-                    }
-                    QPushButton:hover {
-                        background-color: #555;
-                    }
-                """)
-                export_btn.setCursor(Qt.PointingHandCursor)
-                export_btn.clicked.connect(lambda checked, f=fname: self.export_key(f))
-                layout.addWidget(export_btn, alignment=Qt.AlignVCenter)
+            # Nombre base
+            label = QLabel(base)
+            label.setStyleSheet("color: white; font-size: 13px; font-weight: bold;")
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            layout.addWidget(label)
 
-                # 🗑 Botón Eliminar
-                delete_btn = QPushButton("Eliminar")
-                delete_btn.setMinimumHeight(36)
-                delete_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #451313;
-                        color: white;
-                        padding: 6px 16px;
-                        border-radius: 6px;
-                    }
-                    QPushButton:hover {
-                        background-color: #cc3333;
-                    }
-                """)
-                delete_btn.setCursor(Qt.PointingHandCursor)
-                delete_btn.clicked.connect(lambda checked, f=fname: self.delete_key(f))
-                layout.addWidget(delete_btn, alignment=Qt.AlignVCenter)
+            # Botón Exportar
+            export_btn = QPushButton("Exportar")
+            export_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #6b6969;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #444;
+                }
+            """)
+            export_btn.setCursor(Qt.PointingHandCursor)
+            export_btn.setFixedSize(95, 45)
+            export_btn.clicked.connect(
+                lambda _, b=base, f=files, btn=export_btn: self.show_export_menu(f, btn)
+            )
+            layout.addWidget(export_btn)
 
-                # Aplicar layout y estilo al widget
-                widget.setLayout(layout)
-                widget.setStyleSheet("""
-                    QWidget {
-                        background-color: transparent;
-                        border-radius: 6px;
-                    }
-                """)
+            # Botón Eliminar
+            delete_btn = QPushButton("Eliminar")
+            delete_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #451313;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #cc3333;
+                }
+            """)
+            delete_btn.setCursor(Qt.PointingHandCursor)
+            delete_btn.setFixedSize(95, 45)
+            delete_btn.clicked.connect(lambda _, b=base: self.delete_key_pair(b))
+            layout.addWidget(delete_btn)
 
-                item.setFlags(Qt.ItemIsEnabled)
-                widget.setMinimumHeight(64)
-                item.setSizeHint(QSize(0, 64))  # Tamaño fijo para altura uniforme
-                self.keys_list_widget.addItem(item)
-                self.keys_list_widget.setItemWidget(item, widget)
+            widget.setLayout(layout)
+            item.setFlags(Qt.ItemIsEnabled)
+            item.setSizeHint(QSize(0, 64))
+            self.keys_list_widget.addItem(item)
+            self.keys_list_widget.setItemWidget(item, widget)
+
+    #Función que muestra el menú para exportar las llaves
+    def show_export_menu(self, files, button):
+        menu = QMenu()
+
+        if "private" in files:
+            icon_priv = QIcon("assets/icons/key-yellow.svg")
+            action_priv = QAction(icon_priv, "Llave privada", self)
+            action_priv.triggered.connect(lambda _, path=files["private"]: self.export_key(path))
+            menu.addAction(action_priv)
+
+        if "public" in files:
+            icon_pub = QIcon("assets/icons/key-white.svg")
+            action_pub = QAction(icon_pub, "Llave pública", self)
+            action_pub.triggered.connect(lambda _, path=files["public"]: self.export_key(path))
+            menu.addAction(action_pub)
+
+        menu.exec_(button.mapToGlobal(button.rect().bottomLeft()))
+
 
 
 
@@ -600,12 +656,14 @@ class EncryptionPanel(QWidget):
     def export_key(self, fname):
         keys_dir = self.get_keys_dir()
         src = os.path.join(keys_dir, fname)
-        dest, _ = QFileDialog.getSaveFileName(self, "Exportar llave", fname, "PEM Files (*.pem)")
+        dest, _ = QFileDialog.getSaveFileName(
+            self, "Exportar llave", fname, "PEM Files (*.pem)"
+        )
         if dest:
             try:
                 with open(src, "rb") as fsrc, open(dest, "wb") as fdest:
                     fdest.write(fsrc.read())
-                QMessageBox.information(self, "Exportación exitosa", f"Archivo exportado a:\n{dest}")
+                QMessageBox.information(self, "Exportación exitosa", f"La llave fue exportada a:\n{dest}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo exportar:\n{str(e)}")
 
@@ -619,6 +677,19 @@ class EncryptionPanel(QWidget):
                 self.load_keys()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo eliminar:\n{str(e)}")
+    
+    #Función auxiliar para eliminar un par de llaves
+    def delete_key_pair(self, base_name):
+        keys_dir = self.get_keys_dir()
+        confirm = QMessageBox.question(
+            self, "Eliminar", f"¿Eliminar las llaves '{base_name}_public.pem' y '{base_name}_private.pem'?",
+            QMessageBox.Yes | QMessageBox.No)
+        if confirm == QMessageBox.Yes:
+            for tipo in ["private", "public"]:
+                path = os.path.join(keys_dir, f"{base_name}_{tipo}.pem")
+                if os.path.exists(path):
+                    os.remove(path)
+            self.load_keys()
 
 
 
