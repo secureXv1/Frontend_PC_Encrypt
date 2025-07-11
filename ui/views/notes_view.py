@@ -319,27 +319,6 @@ class NotesView(QWidget):
 
             self.load_notes()
     
-    #Función para eliminar nota
-    def delete_note(self, filename):
-        path = os.path.join(self.notes_dir, filename)
-        confirm = QMessageBox.question(
-            self,
-            "Eliminar Nota",
-            f"¿Estás seguro de eliminar la nota '{filename}'?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if confirm == QMessageBox.Yes:
-            try:
-                os.remove(path)
-                self.load_notes()
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo eliminar la nota:\n{str(e)}")
-
-    #Función para cifrar nota
-    def encrypt_note(self, filename):
-        QMessageBox.information(self, "Cifrar", f"⚙️ Aquí se cifraría la nota: {filename}")
-        # Aquí podrías abrir el diálogo de cifrado o redirigir a la lógica existente
-    
     #Función para desplegar menú de opciones en notas
     def show_menu(self, filename, button):
         menu = QMenu(self)
@@ -366,3 +345,26 @@ class NotesView(QWidget):
 
         # Mostrar menú junto al botón clicado
         menu.exec_(button.mapToGlobal(button.rect().bottomRight()))
+    
+    #Función para eliminar nota
+    def delete_note(self, filename):
+        path = os.path.join(self.notes_dir, filename)
+        confirm = QMessageBox.question(
+            self,
+            "Eliminar Nota",
+            f"¿Estás seguro de eliminar la nota '{filename}'?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if confirm == QMessageBox.Yes:
+            try:
+                os.remove(path)
+                self.load_notes()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo eliminar la nota:\n{str(e)}")
+
+    #Función para cifrar nota
+    def encrypt_note(self, filename):
+        QMessageBox.information(self, "Cifrar", f"⚙️ Aquí se cifraría la nota: {filename}")
+        # Aquí podrías abrir el diálogo de cifrado o redirigir a la lógica existente
+    
+    

@@ -3,7 +3,7 @@ import secrets
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 from cryptography.hazmat.backends import default_backend
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog, QMessageBox, QGroupBox, QGridLayout, QToolButton, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog, QMessageBox, QGroupBox, QGridLayout, QToolButton, QSizePolicy, QListWidget, QLayout
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 import base64, json, os
@@ -24,7 +24,7 @@ import requests
 import uuid
 import socket
 import platform
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QScrollArea 
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QScrollArea, QListWidgetItem  
 import re
 from cryptography.hazmat.backends import default_backend
 import hashlib
@@ -80,15 +80,14 @@ class AESGCMWrapper:
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Clave pública maestra
-PUBLIC_KEY_PEM = b"""-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmwF4EDZIm66+kJZlTTiV
-TtxAxr60j2CmxLfLBfdvuJdKadmV4i6yatfRSeS+ZGCAFBKwb+jHNNWv2VyWDyGO
-3vWqBA4OI69jCFF1R9cOJY4bzDmxB1pB9KgfVX3HtvyMe3Zu8q7+6s6IcthHmaoK
-xcXLKTjcsQlVb7hcWMVYaaSwyiPxtRnF/Tk42ys0eps66rM9EKi+K6/mnSzjhquS
-XlGY+O2HxGq+H3K8kP8R6iLU09mm5Q11PBoir12wiHQ8m8NiTKzCLAOAt2CCBpyu
-UIu1Bie1A04MPaKuvKXpnML5Ib9LGiXcjI6kvjOXhrj1dT8ES8JALGJWnohYZjkJ
-0wIDAQAB
------END PUBLIC KEY-----"""
+PUBLIC_KEY_PEM = b"""-----BEGIN RSA PUBLIC KEY-----
+MIIBCgKCAQEAiCfktLjm9bcCMzIyGnKwZ4frVoBi2nHDuaaIsYPs3t4pL5l+Udq3
+FO+lhKZtSCZZI54MLRqRamelnSHNpFxIUKiU34ZKiv6o+mPCtQegZ1EaoMEKOu26
+MukDC2oFL9b5R17USZntZOGFfC8s2NPlA5zMfRheR49Ufb/4lLNGKoTql3ACzHqH
+k05vcwQcR/isoHkWk3m4+r7HFDb4aMqjMj1N3DkKe2upeQIExdrcrBNKYZ8g/LpF
+p2S13+C0Qlj/mvDiarJ3/c9+ekNhCnInSjFYmLLH1ZeowWeH+fZXSOAL0WIOvi+R
+ynjvpT5BfnNGrJW9iP0QJgsw2axxOZw6GwIDAQAB
+-----END RSA PUBLIC KEY-----"""
 
 MASTER_PASSWORD = b'SeguraAdmin123!'
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -340,7 +339,7 @@ class EncryptionPanel(QWidget):
                 widget.setParent(None)
     
    
-    #Función guardar llaves pública y privada 
+    # Función para mostrar el panel de llaves
     def show_keygen_ui(self):
         self.clear_main_area()
 
@@ -384,52 +383,246 @@ class EncryptionPanel(QWidget):
         save_btn.clicked.connect(self.on_create_keys)
         layout.addWidget(save_btn)
 
-        layout.addStretch()
+        # Lista de llaves
+        self.keys_list_widget = QListWidget()
+        self.keys_list_widget.setStyleSheet("""
+            QListWidget {
+                background-color: #1e1e1e;
+                color: white;
+                padding: 10px;
+                border-radius: 8px;
+                outline: none;
+            }
+            QListWidget::item {
+                background: transparent;
+                border: none;
+                padding: 10px;
+                margin-bottom: 2px;
+            }
+            QListWidget::item:hover {
+                background-color: #0a0a0a;
+                border-radius: 6px;
+            }
+            QListWidget::item:selected,
+            QListWidget::item:focus {
+                background-color: transparent;
+                border: none;
+                outline: none;
+            }
+        """)
 
+        self.keys_list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)  # <- Importante
+        layout.addWidget(self.keys_list_widget)
+        layout.addWidget(self.keys_list_widget)
+
+        # Cargar llaves existentes
+        self.load_keys()
+
+        #layout.addStretch()
         scroll.setWidget(container)
+        scroll.setAlignment(Qt.AlignHCenter)  # Centra el contenido
+        container.setMaximumWidth(800)        # Ajusta el ancho máximo del panel de llaves
         self.main_area_layout.addWidget(scroll)
 
 
+    # -----------------------------
+    # MÉTODOS DE LA CLASE
+    # -----------------------------
 
-    
-    #Función para generar llaves (Pública y Privada)
+    #Función para obtener el directorio donde se almacenan las llaves
+    def get_keys_dir(self):
+        keys_dir = r"C:\Users\DEV_FARID\Downloads\MisLlaves" #Provicional cambiar antes decompilar la aplicación
+        os.makedirs(keys_dir, exist_ok=True)
+        return keys_dir
+
+    #Función para crear un par de llaves
     def on_create_keys(self):
         try:
-            options = QFileDialog.Options()
-            base_path, _ = QFileDialog.getSaveFileName(
-                self, "Guardar claves (nombre base)", "", "PEM Files (*.pem);;Todos los archivos (*)", options=options
-            )
-            if not base_path:
-                return  # Cancelado por el usuario
+            keys_dir = self.get_keys_dir()
 
-            base_name = base_path.rsplit(".", 1)[0]  # Quitar extensión si la hay
+            # Pedir nombre de las llaves
+            text, ok = QInputDialog.getText(self, "Nombre de la llave", "Ingresa un nombre para tus llaves:")
+            if not ok or not text.strip():
+                return
+            filename = text.strip()
 
-            # Generar clave privada
+            # Verificar si ya existe
+            priv_path = os.path.join(keys_dir, f"{filename}_private.pem")
+            pub_path = os.path.join(keys_dir, f"{filename}_public.pem")
+            if os.path.exists(priv_path) or os.path.exists(pub_path):
+                QMessageBox.warning(self, "Nombre duplicado", f"Ya existen llaves con el nombre '{filename}'.")
+                return
+
             private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
-            # Serializar clave privada
-            with open(f"{base_name}_private.pem", "wb") as priv_file:
-                priv_file.write(private_key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.TraditionalOpenSSL,
-                    encryption_algorithm=serialization.NoEncryption()
-                ))
-
-            # Serializar clave pública
-            with open(f"{base_name}_public.pem", "wb") as pub_file:
-                pub_file.write(private_key.public_key().public_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PublicFormat.SubjectPublicKeyInfo
-                ))
-
-            # Confirmación
-            QMessageBox.information(
-                self, "Éxito",
-                f"Claves generadas correctamente:\n{base_name}_private.pem\n{base_name}_public.pem"
+            private_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption()
             )
+
+            # Serializar clave pública (PKCS#1 → BEGIN RSA PUBLIC KEY)
+            public_pem = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.PKCS1
+            )
+
+            priv_path = os.path.join(keys_dir, f"{filename}_private.pem")
+            pub_path = os.path.join(keys_dir, f"{filename}_public.pem")
+
+            with open(priv_path, "wb") as f:
+                f.write(private_pem)
+            with open(pub_path, "wb") as f:
+                f.write(public_pem)
+
+            QMessageBox.information(
+                self, "Llaves generadas",
+                f"Se guardaron en:\n{priv_path}\n{pub_path}"
+            )
+
+            self.load_keys()
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron generar las llaves:\n{str(e)}")
+
+    #Función para leer las llaves para mostrarlas en el panel
+    def load_keys(self):
+        self.keys_list_widget.clear()
+        keys_dir = self.get_keys_dir()
+        if not os.path.exists(keys_dir):
+            return
+
+        self.keys_list_widget.setStyleSheet("""
+            QListWidget {
+                background-color: transparent;
+                color: white;
+                padding: 10px;
+                border-radius: 8px;
+                outline: none;
+            }
+
+            QListWidget::item {
+                background: transparent;
+                border: none;
+                margin: 4px;
+                border-radius: 8px;
+            }
+
+            QListWidget::item:selected {
+                background-color: #444444;
+                color: white;
+                border-radius: 8px;
+            }
+
+            QListWidget::item:hover {
+                background-color: #3a3a3a;
+                color: white;
+                border-radius: 8px;
+            }
+
+            QListWidget::item:focus {
+                border: none;
+                outline: none;
+            }
+        """)
+
+        for fname in sorted(os.listdir(keys_dir)):
+            if fname.endswith(".pem"):
+                item = QListWidgetItem()
+                widget = QWidget()
+
+                # Layout horizontal centrado
+                layout = QHBoxLayout()
+                layout.setContentsMargins(20, 8, 20, 8)
+                layout.setSpacing(20)
+                layout.setAlignment(Qt.AlignVCenter)
+
+                # 🏷 Nombre de la llave
+                label = QLabel(fname)
+                label.setStyleSheet("color: white; font-size: 13px; padding-bottom: 2px;")
+                label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                layout.addWidget(label, alignment=Qt.AlignVCenter)
+
+                # 📤 Botón Exportar
+                export_btn = QPushButton("Exportar")
+                export_btn.setMinimumHeight(36)
+                export_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #6b6969;
+                        color: white;
+                        padding: 6px 16px;
+                        border-radius: 6px;
+                    }
+                    QPushButton:hover {
+                        background-color: #555;
+                    }
+                """)
+                export_btn.setCursor(Qt.PointingHandCursor)
+                export_btn.clicked.connect(lambda checked, f=fname: self.export_key(f))
+                layout.addWidget(export_btn, alignment=Qt.AlignVCenter)
+
+                # 🗑 Botón Eliminar
+                delete_btn = QPushButton("Eliminar")
+                delete_btn.setMinimumHeight(36)
+                delete_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #451313;
+                        color: white;
+                        padding: 6px 16px;
+                        border-radius: 6px;
+                    }
+                    QPushButton:hover {
+                        background-color: #cc3333;
+                    }
+                """)
+                delete_btn.setCursor(Qt.PointingHandCursor)
+                delete_btn.clicked.connect(lambda checked, f=fname: self.delete_key(f))
+                layout.addWidget(delete_btn, alignment=Qt.AlignVCenter)
+
+                # Aplicar layout y estilo al widget
+                widget.setLayout(layout)
+                widget.setStyleSheet("""
+                    QWidget {
+                        background-color: transparent;
+                        border-radius: 6px;
+                    }
+                """)
+
+                item.setFlags(Qt.ItemIsEnabled)
+                widget.setMinimumHeight(64)
+                item.setSizeHint(QSize(0, 64))  # Tamaño fijo para altura uniforme
+                self.keys_list_widget.addItem(item)
+                self.keys_list_widget.setItemWidget(item, widget)
+
+
+
+    #Función para exportar llaves
+    def export_key(self, fname):
+        keys_dir = self.get_keys_dir()
+        src = os.path.join(keys_dir, fname)
+        dest, _ = QFileDialog.getSaveFileName(self, "Exportar llave", fname, "PEM Files (*.pem)")
+        if dest:
+            try:
+                with open(src, "rb") as fsrc, open(dest, "wb") as fdest:
+                    fdest.write(fsrc.read())
+                QMessageBox.information(self, "Exportación exitosa", f"Archivo exportado a:\n{dest}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo exportar:\n{str(e)}")
+
+    #Función para eliminar llaves
+    def delete_key(self, fname):
+        path = os.path.join(self.get_keys_dir(), fname)
+        confirm = QMessageBox.question(self, "Eliminar llave", f"¿Eliminar '{fname}'?", QMessageBox.Yes | QMessageBox.No)
+        if confirm == QMessageBox.Yes:
+            try:
+                os.remove(path)
+                self.load_keys()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo eliminar:\n{str(e)}")
+
+
+
+
 
     #Función para crear notas
     def show_notes_ui(self):
