@@ -1,5 +1,11 @@
-import os
 import secrets
+#from ui.panels.encryption_panel import PUBLIC_KEY_PEM, get_client_uuid
+from ui.views.notes_view import NotesView
+from ui.views.encrypted_view import EncryptedView
+from ui.password_dialog import PasswordDialog
+from ui.crypto_utils import AESCBCWrapper
+from ui.encryption_method_dialog import EncryptionMethodDialog
+from db_cliente import get_client_uuid
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 from cryptography.hazmat.backends import default_backend
@@ -9,7 +15,6 @@ from cryptography.hazmat.primitives import serialization, hashes
 import base64, json, os
 from PyQt5 import QtWidgets, QtGui, QtCore
 import sys
-import os, json
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -36,8 +41,6 @@ from PyQt5.QtCore import QTimer, Qt, QSize, pyqtSignal, QPropertyAnimation, QEas
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QImage, QColor
 from PyQt5.QtWidgets import QComboBox
-import json
-import base64
 from PyQt5.QtWidgets import QInputDialog
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from PyQt5.QtSvg import QSvgRenderer
@@ -47,10 +50,6 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 import os, json, base64
-from ui.password_dialog import PasswordDialog
-from ui.crypto_utils import AESCBCWrapper
-from ui.encryption_method_dialog import EncryptionMethodDialog
-from db_cliente import get_client_uuid
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from functools import partial
 import shutil
@@ -158,8 +157,7 @@ class FileDropWidget(QLabel):
 
 
 
-
-
+#Clase Panel de cifrado (EncryptionPanel)
 class EncryptionPanel(QWidget):
     def __init__(self):
         super().__init__()
@@ -271,13 +269,6 @@ class EncryptionPanel(QWidget):
         main_layout.addWidget(self.scroll_area)
 
 
-
-
-
-
-
-
-
     
     #Función para modificar el panel de acuerdo a la selección del usuario
     def handle_selection(self, operation, button):
@@ -377,7 +368,7 @@ class EncryptionPanel(QWidget):
         create_btn.setIconSize(QSize(38 , 38))
         create_btn.setCursor(Qt.PointingHandCursor)
         create_btn.setToolTip("Crear")
-        create_btn.setStyleSheet("QPushButton { backgroud-color: transparent; border: none; }")
+        create_btn.setStyleSheet("QPushButton { background-color: transparent; border: none; }")
         create_btn.clicked.connect(self.on_create_keys)
         icon_buttons_layout.addWidget(create_btn)
 
@@ -411,7 +402,7 @@ class EncryptionPanel(QWidget):
                 margin-bottom: 2px;
             }
             QListWidget::item:hover {
-                background-color: #0a0a0a;
+                background-color: #444444;
                 border-radius: 6px;
             }
             QListWidget::item:selected,
@@ -722,8 +713,7 @@ class EncryptionPanel(QWidget):
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        #Contenido dinámico - Vista de Notas
-        from ui.views.notes_view import NotesView
+        #Contenido dinámico - Vista de Notas        
         notes_view = NotesView()
         layout.addWidget(notes_view)
 
@@ -759,31 +749,41 @@ class EncryptionPanel(QWidget):
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # Botón principal
-        encrypt_btn = QPushButton("Cifrar archivo")
+        # Contenedor botón de cifrado
+        encrypt_container = QWidget()
+        encrypt_layout = QVBoxLayout(encrypt_container)
+        encrypt_layout.setContentsMargins(0, 0, 0, 0)
+        encrypt_layout.setSpacing(0)
+        encrypt_layout.setAlignment(Qt.AlignCenter)
+
+        # Botón de cifrado (ícono)
+        encrypt_btn = QPushButton()
+        encrypt_btn.setIcon(QIcon("assets/icons/create.svg"))
+        encrypt_btn.setIconSize(QSize(38, 38))
         encrypt_btn.setCursor(Qt.PointingHandCursor)
+        encrypt_btn.setToolTip("Cifrar archivo")
         encrypt_btn.setStyleSheet("""
             QPushButton {
-                background-color: #00BCD4;
-                color: white;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 14px;
+                background-color: transparent;
+                border-radius: 8px;
+                padding: 8px;
             }
             QPushButton:hover {
-                background-color: #00a5bb;
+                background-color: transparent;
             }
         """)
         encrypt_btn.clicked.connect(self.on_encrypt_file)
-        layout.addWidget(encrypt_btn)
+        encrypt_layout.addWidget(encrypt_btn, alignment=Qt.AlignCenter)
 
-        layout.addStretch()
+        # Agregar al layout principal
+        layout.addWidget(encrypt_container, alignment=Qt.AlignCenter)
+
+        #Vista de archivos cifrados y extraidos
+        self.encrypted_view = EncryptedView()
+        layout.addWidget(self.encrypted_view)
+       
         scroll.setWidget(container)
         self.main_area_layout.addWidget(scroll)
-
-
-
 
 
 
@@ -808,26 +808,45 @@ class EncryptionPanel(QWidget):
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         layout.addWidget(title)
 
+        # Descripción
+        desc = QLabel("Selecciona un archivo para descifrar utilizando contraseña o clave pública.")
+        desc.setStyleSheet("color: #CCCCCC; font-size: 14px;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
         # Drag & Drop
         self.decrypt_drop = FileDropWidget("📂 Arrastra aquí tu archivo cifrado o haz clic para buscar...")
         layout.addWidget(self.decrypt_drop)
 
-        # Botón descifrar
-        self.decrypt_btn = QPushButton("Descifrar archivo")
-        self.decrypt_btn.setCursor(Qt.PointingHandCursor)
-        self.decrypt_btn.setEnabled(False)  # Desactivado al inicio
-        self.decrypt_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #555;
-                color: #aaa;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 14px;
+        
+        #Contenedor principal del botón de descifrado
+        decrypt_container = QWidget()
+        decrypt_layout = QVBoxLayout(decrypt_container)
+        decrypt_layout.setContentsMargins(0, 0, 0, 0)
+        decrypt_layout.setSpacing(0)
+        decrypt_layout.setAlignment(Qt.AlignCenter)
+
+        #Botón de descifrado (ícono)
+        decrypt_btn = QPushButton()
+        decrypt_btn.setIcon(QIcon("assets/icons/decrypt1.svg"))
+        decrypt_btn.setIconSize(QSize(38, 38))
+        decrypt_btn.setCursor(Qt.PointingHandCursor)
+        decrypt_btn.setToolTip("Descifrar Archivo")
+        decrypt_btn.setStyleSheet("""
+            QPusButton{
+                background-color: #333;
+                border-radius: 8px;
+                padding: 8px;
+            }
+            QPushButton:hover{
+                background-color: transparent;
             }
         """)
-        self.decrypt_btn.clicked.connect(self.decrypt_file_logic)
-        layout.addWidget(self.decrypt_btn)
+        decrypt_btn.clicked.connect(self.decrypt_file_logic)
+        decrypt_layout.addWidget(decrypt_btn, alignment=Qt.AlignCenter)
+
+        #Agregar al layout principal
+        layout.addWidget(decrypt_container, alignment=Qt.AlignCenter)
 
         # Habilitar el botón cuando se carga un archivo
         def enable_decrypt_button(path):
@@ -1384,6 +1403,9 @@ class EncryptionPanel(QWidget):
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo extraer el archivo:\n{str(e)}")
+    
+        #Llamamos encrypted_view para refrescar el listado de archivos cifrados
+        self.encrypted_view.load_files() 
 
 
 
@@ -1482,6 +1504,9 @@ class EncryptionPanel(QWidget):
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo cifrar el archivo:\n{str(e)}")
+        
+        #Llamamos encrypted_view para refrescar el listado de archivos cifrados
+        self.encrypted_view.load_files() 
 
 
 
@@ -1603,11 +1628,7 @@ class EncryptionPanel(QWidget):
 #+++++FUNCIONES AUXILIARES+++++INICIO+++++
 
 #Función para cifrar un archivo con RSA
-def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):
-    import json, base64, os
-    from cryptography.hazmat.primitives import serialization, hashes
-    from cryptography.hazmat.primitives.asymmetric import padding
-    from ui.panels.encryption_panel import PUBLIC_KEY_PEM, get_client_uuid
+def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):  
 
     with open(input_path, "rb") as f:
         file_data = f.read()

@@ -20,11 +20,36 @@ class NotesView(QWidget):
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
+      
 
-        # ➕ Botón nueva nota
-        self.new_button = QPushButton("➕ Nueva Nota")
-        self.new_button.clicked.connect(self.create_note)
-        self.layout.addWidget(self.new_button)
+        # Contenedor del botón de acción
+        icon_buttons_layout = QHBoxLayout()
+        icon_buttons_layout.setContentsMargins(0, 10, 0, 10)
+        icon_buttons_layout.setSpacing(20)
+        icon_buttons_layout.setAlignment(Qt.AlignCenter)
+
+        # Icono para crear nueva nota
+        create_note_btn = QPushButton()
+        create_note_btn.setIcon(QIcon("assets/icons/create.svg"))
+        create_note_btn.setIconSize(QSize(38, 38))
+        create_note_btn.setCursor(Qt.PointingHandCursor)
+        create_note_btn.setToolTip("Nueva Nota")
+        create_note_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: transparent;
+                border-radius: 6px;
+            }
+        """)
+        create_note_btn.clicked.connect(self.create_note)
+        icon_buttons_layout.addWidget(create_note_btn)
+
+        # Agregar el contenedor al layout principal
+        self.layout.addLayout(icon_buttons_layout)
+
 
         # 🔍 Barra de búsqueda
         self.search_bar = QLineEdit()
