@@ -5,6 +5,7 @@ from ui.views.encrypted_view import EncryptedView
 from ui.password_dialog import PasswordDialog
 from ui.crypto_utils import AESCBCWrapper
 from ui.encryption_method_dialog import EncryptionMethodDialog
+from ui.panels.encrypt_wizard_dialog import EncryptWizardDialog
 from db_cliente import get_client_uuid
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
@@ -162,7 +163,7 @@ class EncryptionPanel(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Panel Cifrado")
-        self.setStyleSheet("background-color: #1E1E1E;")  # Fondo oscuro coherente
+        self.setStyleSheet("background-color: #1E1E1E;")  
         self.icon_path = "assets/icons"
         self.init_ui()
     
@@ -1444,69 +1445,37 @@ class EncryptionPanel(QWidget):
     #+++++FUNCIONES PRINCIPALES++++++placeholder+++++
 
     #Función para cifrar un archivo
-    def on_encrypt_file(self):
-        # Seleccionar archivo a cifrar
-        input_file, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Seleccionar archivo a cifrar", "", "Todos los archivos (*)"
-        )
-        if not input_file:
-            return
+    def on_encrypt_file(self):      
+        dialog = EncryptWizardDialog(self)
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            # Aquí realizar el cifrado real una vez el usuario complete el asistente
+            try:
+                # Obtener archivos y método elegido
+                files = [dialog.file_list.item(i).text() for i in range(dialog.file_list.count())]
+                method = "Contraseña" if dialog.radio_password.isChecked() else "Llave"
+                output_dir = r"C:\Users\DEV_FARID\Downloads\Cifrado"
 
-        # Mostrar nuevo diálogo visual
-        dlg = EncryptionMethodDialog()
-        if dlg.exec_() != QtWidgets.QDialog.Accepted:
-            return
+                for input_file in files:
+                    original_name = os.path.splitext(os.path.basename(input_file))[0]
+                    output_path = os.path.join(output_dir, f"{original_name}_Cif.json")
 
-        metodo = dlg.selected_method()
-        if metodo == "Seleccione una opción...":
-            QtWidgets.QMessageBox.warning(
-                self, "Método requerido",
-                "Por favor selecciona un método de cifrado válido."
-            )
-            return
+                    if method == "Contraseña":
+                        password = dialog.password_input.text()
+                        cifrar_archivo_con_password(input_file, password, output_path)
+                    else:
+                        selected_item = dialog.key_list.currentItem()
+                        if not selected_item:
+                            raise Exception("No se seleccionó ninguna llave pública.")
+                        public_key_path = selected_item.text()
+                        cifrar_archivo_con_rsa(input_file, public_key_path, output_path)
 
-        # Seleccionar ubicación de guardado
-        original_name = os.path.splitext(os.path.basename(input_file))[0]
-        output_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Guardar archivo cifrado", f"{original_name}_Cif.json",
-            "JSON Files (*.json);;Todos los archivos (*)"
-)
-
-
-        if not output_path:
-            return
-
-        try:
-            if metodo == "Contraseña":
-                # Cifrado con contraseña
-                dlg_pwd = PasswordDialog()
-                if dlg_pwd.exec_() == QtWidgets.QDialog.Accepted:
-                    password = dlg_pwd.get_password()
-                    cifrar_archivo_con_password(input_file, password, output_path)
-                    QtWidgets.QMessageBox.information(
-                        self, "Éxito",
-                        f"Archivo cifrado con contraseña guardado en:\n{output_path}"
-                    )
-            else:
-                # Cifrado con clave pública
-                public_key_path, _ = QtWidgets.QFileDialog.getOpenFileName(
-                    self, "Seleccionar clave pública del destinatario", "",
-                    "PEM Files (*.pem);;Todos los archivos (*)"
-                )
-                if not public_key_path:
-                    return
-
-                cifrar_archivo_con_rsa(input_file, public_key_path, output_path)
                 QtWidgets.QMessageBox.information(
-                    self, "Éxito",
-                    f"Archivo cifrado con llave de seguridad guardado en:\n{output_path}"
+                    self, "Éxito", f"{len(files)} archivo(s) cifrado(s) correctamente."
                 )
+                self.encrypted_view.load_files()
 
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo cifrar el archivo:\n{str(e)}")
-        
-        #Llamamos encrypted_view para refrescar el listado de archivos cifrados
-        self.encrypted_view.load_files() 
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo completar el cifrado:\n{str(e)}") 
 
 
 

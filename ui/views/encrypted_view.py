@@ -31,7 +31,7 @@ class EncryptedView(QWidget):
 
         # Contenedor con título para lista de cifrados
         cifrados_layout = QVBoxLayout()
-        cifrados_title = QLabel("📂 Mis archivos")
+        cifrados_title = QLabel("📄 Mis archivos")
         cifrados_title.setStyleSheet("color: white; font-size: 14px; font-weight: bold; margin-bottom: 6px;")
         cifrados_title.setAlignment(Qt.AlignCenter)
         cifrados_layout.addWidget(cifrados_title)
@@ -39,7 +39,7 @@ class EncryptedView(QWidget):
 
         # Contenedor con título para lista de extraídos
         extraidos_layout = QVBoxLayout()
-        extraidos_title = QLabel("📂 Recibidos")
+        extraidos_title = QLabel("📄 Recibidos")
         extraidos_title.setStyleSheet("color: white; font-size: 14px; font-weight: bold; margin-bottom: 6px;")
         extraidos_title.setAlignment(Qt.AlignCenter)
         extraidos_layout.addWidget(extraidos_title)
