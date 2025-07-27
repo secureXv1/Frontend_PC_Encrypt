@@ -232,7 +232,7 @@ class ChatWindow(QWidget):
     
         # 👇 Sube tres niveles si estás dentro de /PGP/pgp/ui/ChatWindow.py
         PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        fondo_path = os.path.join(PROJECT_ROOT, "PGP", "pgp","assets", "images", "cyber-security-3400657_1280.jpg")
+        fondo_path = os.path.join(PROJECT_ROOT, "pgp","assets", "images", "cyber-security-3400657_1280.jpg")
 
         fondo_pixmap = QPixmap(fondo_path)
         if fondo_pixmap.isNull():

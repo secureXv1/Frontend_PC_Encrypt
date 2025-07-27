@@ -1,69 +1,113 @@
-from PyQt5.QtWidgets import QWidget, QLabel, QListWidget, QListWidgetItem, QHBoxLayout, QVBoxLayout
-from PyQt5.QtGui import QPixmap, QPainter, QColor
-from PyQt5.QtCore import Qt, QPropertyAnimation
 from PyQt5.QtSvg import QSvgRenderer
+from PyQt5.QtGui import QPixmap, QPainter, QColor
+from PyQt5.QtCore import Qt, QByteArray
+from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout
 import os
+import re
 
-def load_colored_svg_icon(path, color="#00BCD4", size=24):
-        renderer = QSvgRenderer(path)
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.transparent)
+def load_colored_svg_icon(path, color="#00BCD4", size=38):
+    # print(f"🔄 Cargando SVG: {path}")
+    if not os.path.exists(path):
+        print(f"❌ SVG no encontrado: {path}")
+        return QPixmap(size, size)
 
-        painter = QPainter(pixmap)
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            svg_data = f.read()
+
+        # 🔁 Forzar color: reemplaza todos los fill existentes
+        svg_data = re.sub(r'fill="[^"]+"', f'fill="{color}"', svg_data)
+
+        # Si no tiene fill, añade uno al path principal
+        if 'fill=' not in svg_data:
+            svg_data = svg_data.replace('<path', f'<path fill="{color}"')
+
+        # 🔧 Reemplazo para stroke si es lo único que existe
+        svg_data = re.sub(r'stroke="[^"]+"', f'stroke="{color}"', svg_data)
+
+        renderer = QSvgRenderer(QByteArray(svg_data.encode('utf-8')))
+        if not renderer.isValid():
+            print(f"⚠️ SVG inválido tras modificar: {path}")
+            return QPixmap(size, size)
+
+        image = QPixmap(size, size)
+        image.fill(Qt.transparent)
+
+        painter = QPainter(image)
         renderer.render(painter)
-        painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
-        painter.fillRect(pixmap.rect(), QColor(color))
         painter.end()
 
-        return pixmap
+        return image
+
+    except Exception as e:
+        print(f"❌ Error al renderizar SVG {path}: {e}")
+        return QPixmap(size, size)
+
 
 class HomePanel(QWidget):
     def __init__(self):
         super().__init__()
+        self.background_path = os.path.join(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+            "assets", "images", "BluePost2.jpg"
+        )
+        self.background_pixmap = QPixmap(self.background_path)
 
-        # Layout principal horizontal
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(40, 40, 40, 40)
+        main_layout.setSpacing(40)
 
-        # 🖼️ Panel izquierdo con imagen centrada
-        self.image_label = QLabel()
-        self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setStyleSheet("background-color: black;")  # opcional
-        main_layout.addWidget(self.image_label, 1)
+        # 📝 Texto descriptivo de la izquierda
+        texto_label = QLabel()
+        texto_label.setText("""
+            <div style='color: #00BCD4; font-size: 40px; font-weight: bold;'>
+                Encrypt
+            </div>
+            <div style='color: white; font-size: 30px; font-weight: bold;'>
+                    Comunicación y Cifrado Seguro, Todo en Uno
+            </div>          
+            <div style='color: #cccccc; font-size: 15px; margin-top: 12px;'>
+                Diseñada para proteger lo que más importa, combina cifrado robusto, anonimato real y 
+                control total sobre tus datos. Desde archivos sensibles hasta conversaciones críticas, todo permanece blindado.
+                <br><br>
+               
+            </div>
+        """)
+        texto_label.setTextFormat(Qt.RichText)
+        texto_label.setWordWrap(True)
+        texto_label.setStyleSheet("background-color: rgba(0,0,0,0.1); padding: 20px; border-radius: 10px;")
 
-        # 📋 Panel derecho con contenido animado
-        self.animaciones = []
-        self.entradas = []
+        main_layout.addWidget(texto_label, 2)
 
+        # 📋 Panel derecho con ítems
         content_layout = QVBoxLayout()
-        content_layout.setContentsMargins(40, 40, 40, 40)
         content_layout.setSpacing(20)
 
-        # Lista de mensajes como check list
         mensajes = [
-            "Seguridad sin compromisos \nTu información permanece protegida en todo momento",
+            "Seguridad sin compromisos \nTu información protegida en todo momento",
             "Cifrado de nivel avanzado \nBlindaje total para tus archivos y mensajes",
             "Túneles privados de comunicación \nSolo quienes deben ver, verán",
             "Control total de tus datos \nSin intermediarios. Sin rastreo. Sin sorpresas",
             "Funciona con o sin internet \nTu privacidad no depende de la red",
             "Diseñada para lo crítico \nIdeal para organizaciones y equipos de seguridad",
             "Archivos invisibles para ojos no autorizados \nLo oculto, permanece oculto.",
-            "Modo discreto \nInterfaz limpia, sin marcas visibles, sin huellas digitales",
-            "Identidad flexible \nUsa distintos alias según el contexto, sin revelar tu origen",
+            "Modo discreto \nInterfaz limpia, sin marcas, sin huellas digitales",
+            "Identidad flexible \nUsa distintos alias sin revelar tu origen",
         ]
 
+        icon_base = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "icons")
         icon_paths = [
-            "assets/icons/lock2.svg",
-            "assets/icons/shield.svg",
-            "assets/icons/satellite.svg",
-            "assets/icons/terminal.svg",
-            "assets/icons/wifi.svg",
-            "assets/icons/target.svg",
-            "assets/icons/hidden2.svg",
-            "assets/icons/eye-off.svg",
-            "assets/icons/user.svg",
+            os.path.join(icon_base, "lock2.svg"),
+            os.path.join(icon_base, "shield.svg"),
+            os.path.join(icon_base, "satellite.svg"),
+            os.path.join(icon_base, "terminal.svg"),
+            os.path.join(icon_base, "wifi.svg"),
+            os.path.join(icon_base, "target.svg"),
+            os.path.join(icon_base, "hidden2.svg"),
+            os.path.join(icon_base, "eye-off.svg"),
+            os.path.join(icon_base, "user.svg"),
         ]
+
 
         for texto, icon_path in zip(mensajes, icon_paths):
             partes = texto.split("\n", 1)
@@ -78,22 +122,22 @@ class HomePanel(QWidget):
             """
 
             icono_label = QLabel()
-            icono_label.setPixmap(load_colored_svg_icon(icon_path, color="#FFF", size=38))
+            icono_label.setPixmap(load_colored_svg_icon(icon_path, color="#00BCD4", size=38))
             icono_label.setFixedSize(38, 38)
-            icono_label.setAlignment(Qt.AlignTop)
+            icono_label.setScaledContents(True)  # 🔹 Asegura que el pixmap se escale al QLabel
+
 
             texto_label = QLabel(html)
             texto_label.setStyleSheet("""
                 color: white;
                 font-size: 15px;
                 padding: 6px;
-                background-color: #1f1f1f;
+                background-color: rgba(0,0,0,0.0);
                 border-left: 4px solid #00BCD4;
                 border-radius: 6px;
             """)
             texto_label.setTextFormat(Qt.RichText)
             texto_label.setWordWrap(True)
-            texto_label.setVisible(True)
 
             fila = QHBoxLayout()
             fila.setContentsMargins(0, 0, 0, 0)
@@ -105,61 +149,23 @@ class HomePanel(QWidget):
             contenedor.setLayout(fila)
             content_layout.addWidget(contenedor)
 
-            self.entradas.append(texto_label)
+        # Contenedor con fondo transparente para los ítems
+        right_container = QWidget()
+        right_container.setLayout(content_layout)
+        right_container.setStyleSheet("""
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+        """)
 
-        right_widget = QWidget()
-        right_widget.setLayout(content_layout)
-        main_layout.addWidget(right_widget, 1)
+        main_layout.addWidget(right_container, 3)
 
-        self.load_centered_image()
 
-    def load_centered_image(self):
-        fondo_path = os.path.join(
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
-            "assets", "images", "BluePost.jpg"
-        )
-
-        fondo_pixmap = QPixmap(fondo_path)
-        if fondo_pixmap.isNull():
-            print(f"❌ Imagen no encontrada o inválida: {fondo_path}")
-            return
-
-        target_size = self.image_label.size()
-        if target_size.width() == 0 or target_size.height() == 0:
-            return  # Evita errores si aún no está renderizado
-
-        # Escalar para cubrir el área (como background-size: cover)
-        scaled_pixmap = fondo_pixmap.scaled(
-            target_size,
-            Qt.KeepAspectRatio,
-            Qt.SmoothTransformation
-        )
-
-        # Recorte centrado
-        x_offset = (scaled_pixmap.width() - target_size.width()) // 2
-        y_offset = (scaled_pixmap.height() - target_size.height()) // 2
-        cropped_pixmap = scaled_pixmap.copy(
-            x_offset, y_offset,
-            target_size.width(), target_size.height()
-        )
-
-        # Aplicar opacidad
-        transparent_pixmap = QPixmap(target_size)
-        transparent_pixmap.fill(Qt.transparent)
-
-        painter = QPainter(transparent_pixmap)
-        painter.setOpacity(0.9)
-        # Calcular posición centrada
-        x = (target_size.width() - scaled_pixmap.width()) // 2
-        y = (target_size.height() - scaled_pixmap.height()) // 2
-        painter.drawPixmap(x, y, scaled_pixmap)
-        painter.end()
-
-        self.image_label.setPixmap(transparent_pixmap)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.load_centered_image()
-
-    
-   
+    def paintEvent(self, event):
+        super().paintEvent(event)  # ✅ Importante: asegura que los hijos se dibujen
+        if not self.background_pixmap.isNull():
+            painter = QPainter(self)
+            scaled = self.background_pixmap.scaled(
+                self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation
+            )
+            painter.drawPixmap(0, 0, scaled)

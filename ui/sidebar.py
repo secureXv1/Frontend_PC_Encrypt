@@ -29,11 +29,6 @@ class Sidebar(QWidget):
         layout.setContentsMargins(0, 10, 0, 10)
         layout.setSpacing(15)
 
-        title = QLabel("Encrypt")
-        title.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
-
         self.setStyleSheet("""
             Sidebar QPushButton {
                 background-color: transparent;
@@ -56,8 +51,8 @@ class Sidebar(QWidget):
         self.buttons = []
         self.icons = [
             ("assets/icons/home.svg", "Inicio"),
-            ("assets/icons/satellite.svg", "Túneles"),
-            ("assets/icons/lock.svg", "Cifrado"),
+            ("assets/icons/lock.svg", "Cifrado"),     # <-- Antes
+            ("assets/icons/satellite.svg", "Túneles"), # <-- Después
         ]
 
         for i, (icon_path, tooltip) in enumerate(self.icons):

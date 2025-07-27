@@ -1,14 +1,6 @@
 from PyQt5.QtWidgets import ( QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit, QHBoxLayout,QTabWidget,
 QFileDialog, QMessageBox, QScrollArea, QFrame, QSpacerItem, QSizePolicy, QDialog, QFormLayout, QListWidget, QListWidgetItem)
-from PyQt5.QtCore import (
-    Qt,
-    QTimer,
-    QPropertyAnimation,
-    QVariantAnimation,
-    pyqtProperty,
-    pyqtSignal,
-    QUrl,
-)
+from PyQt5.QtCore import (Qt,QTimer, QPropertyAnimation, QVariantAnimation, pyqtProperty, pyqtSignal, QUrl,)
 from PyQt5.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter, QFont
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtMultimedia import QSoundEffect
@@ -69,12 +61,12 @@ class TunnelCard(QFrame):
         wrapper.setStyleSheet("background-color: #303030;")
         wrapper_layout = QVBoxLayout(wrapper)
         wrapper_layout.setContentsMargins(8, 4, 8, 4)
-        wrapper_layout.setSpacing(2)
+        wrapper_layout.setSpacing(1)
 
         # Título e ícono de conexión
         title_layout = QHBoxLayout()
         self.title = QLabel(nombre)
-        self.title.setStyleSheet("font-size: 13px; color: white;")
+        self.title.setStyleSheet("font-size: 15px; color: white;")
         self.title.setTextInteractionFlags(Qt.NoTextInteraction)
         title_layout.addWidget(self.title)
 
@@ -92,7 +84,7 @@ class TunnelCard(QFrame):
 
         # Subtítulo
         self.subtitle = QLabel("Fecha de creación")
-        self.subtitle.setStyleSheet("font-size: 10px; color: gray;")
+        self.subtitle.setStyleSheet("font-size: 12px; color: gray;")
         self.subtitle.setTextInteractionFlags(Qt.NoTextInteraction)
         wrapper_layout.addWidget(self.subtitle)
 
@@ -139,11 +131,20 @@ class TunnelCard(QFrame):
                                     color: {"#00ff00" if conectado else "#888"};
                                 """)
 
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListWidget,
+    QLabel, QScrollArea, QTabWidget
+)
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QUrl
+from PyQt5.QtMultimedia import QSoundEffect
+import os
+
+
 class TunnelPanel(QWidget):
     """Panel principal para gestionar y mostrar los túneles."""
 
-    # Signal para procesar mensajes en el hilo de la interfaz
     message_received = pyqtSignal(str)
+
     def __init__(self, uuid, hostname, sistema, parent=None):
         super().__init__(parent)
         self.uuid = uuid
@@ -155,16 +156,46 @@ class TunnelPanel(QWidget):
         self.files = {}
         self.cliente = None
 
-        # Mapea ID de túnel -> lista de tarjetas asociadas en la interfaz
         self.tunnel_cards = {}
         self.tuneles_list = QListWidget()
         self.tuneles = []
 
-        # Conectar la señal que procesa mensajes entrantes en el hilo de Qt
         self.message_received.connect(self._handle_incoming_message)
 
         from db_cliente import get_client_uuid
-        _ = get_client_uuid()  # 👈 Esto asegura que se registre el cliente
+        _ = get_client_uuid()
+
+        # === 🎨 Paleta de colores ===
+        DARK_BG = "#1f1f1f"
+        DARKER_BG = "#1f1f1f"
+        DARKER_BG2 = "#303030"
+        ACCENT = "#00BCD4"
+        TEXT_COLOR = "#f0f0f0"
+        BORDER_COLOR = "#303030"
+        BORDER_COLOR2 = "#1f1f1f"
+
+        # === 🎨 Estilo Global ===
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {DARK_BG};
+                color: {TEXT_COLOR};
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 13px;
+            }}
+            QScrollBar:vertical {{
+                background: {DARKER_BG};
+                width: 10px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {ACCENT};
+                border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """)
 
         main_layout = QHBoxLayout(self)
 
@@ -176,51 +207,104 @@ class TunnelPanel(QWidget):
 
         search_input = QLineEdit()
         search_input.setPlaceholderText("Buscar túnel")
-        search_input.setStyleSheet("padding: 4px; background-color: #222; border: none; color: white;")
+        search_input.setStyleSheet(f"""
+            QLineEdit {{
+                padding: 6px;
+                background-color: {DARKER_BG2};
+                border: 1px solid {BORDER_COLOR2};
+                border-radius: 6px;
+                color: {TEXT_COLOR};
+            }}
+        """)
         search_layout.addWidget(search_input)
 
-        # Botón +
         btn_mas = QPushButton("＋")
         btn_mas.setFixedWidth(50)
-        btn_mas.setStyleSheet("color: #00BCD4; font-size: 18px; background-color: #333; border: none;")
         btn_mas.setCursor(Qt.PointingHandCursor)
-        search_layout.addWidget(btn_mas)
-
-        # Conectar la acción del botón
+        btn_mas.setStyleSheet(f"""
+            QPushButton {{
+                color: white;
+                font-size: 20px;
+                background-color: {ACCENT};
+                border-radius: 8px;
+                padding: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: #0097a7;
+            }}
+        """)
         btn_mas.clicked.connect(self.mostrar_menu_tunel)
+        search_layout.addWidget(btn_mas)
 
         self.left_panel.addLayout(search_layout)
 
+        self.tuneles_list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {DARKER_BG};
+                color: {TEXT_COLOR};
+                border: 1px solid {BORDER_COLOR2};
+                border-radius: 8px;
+                padding: 8px;
+            }}
+            QListWidget::item {{
+                padding: 10px;
+                border-bottom: 1px solid #333;
+            }}
+            QListWidget::item:selected {{
+                background-color: #2e2e3e;
+                color: {ACCENT};
+            }}
+        """)
+
         self.scroll_area = QScrollArea()
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll_area.setFixedWidth(320)
+        self.scroll_area.setFixedWidth(260)
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet(f"""
+            QScrollArea {{
+                background-color: {DARKER_BG};
+                border: none;
+            }}
+        """)
+
         self.scroll_widget = QWidget()
         self.scroll_layout = QVBoxLayout(self.scroll_widget)
         self.scroll_layout.setAlignment(Qt.AlignTop)
         self.scroll_layout.addWidget(self.tuneles_list)
+        self.scroll_layout.addStretch()
+        self.scroll_widget.setMinimumHeight(2)
         self.scroll_area.setWidget(self.scroll_widget)
         self.left_panel.addWidget(self.scroll_area)
 
         left_container = QWidget()
         left_container.setLayout(self.left_panel)
-        left_container.setFixedWidth(340)
+        left_container.setFixedWidth(260)
         main_layout.addWidget(left_container)
 
         # ==== PANEL CENTRAL (Chat) ====
-        
-
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.cerrar_pestana_tunel)
         self.tab_widget.currentChanged.connect(self._tab_changed)
+        self.tab_widget.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid {BORDER_COLOR};
+                top: -1px;
+            }}
+            QTabBar::tab {{
+                background: {DARKER_BG2};
+                color: {TEXT_COLOR};
+                padding: 6px 12px;
+                border: 1px solid {BORDER_COLOR};
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }}
+            QTabBar::tab:selected {{
+                background: {DARK_BG};
+                color: {ACCENT};
+            }}
+        """)
         main_layout.addWidget(self.tab_widget, 4)
-
-        # Timer para refrescar participantes automáticamente
-        self.participant_timer = QTimer(self)
-        self.participant_timer.timeout.connect(self._actualizar_participantes_periodicamente)
-        self.participant_timer.setInterval(8000)  # 8000 ms = 8 segundos
-        self.participant_timer.start()
 
         # ==== PANEL DERECHO (Participantes y Archivos) ====
         right_panel = QVBoxLayout()
@@ -230,24 +314,25 @@ class TunnelPanel(QWidget):
         right_panel.addWidget(label_participantes)
 
         self.users_list = QListWidget()
-        self.users_list.setStyleSheet("""
-            QListWidget {
-                background-color: #2b2b2b;
-                color: white;
-                border: none;
+        self.users_list.setFixedWidth(260)
+        self.users_list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {DARKER_BG2};
+                color: {TEXT_COLOR};
+                border: 1px solid {BORDER_COLOR};
+                border-radius: 6px;
+                padding: 8px;
+            }}
+            QListWidget::item {{
                 padding: 10px;
-            }
-            QListWidget::item {
-                padding: 12px 10px;
-                border-bottom: 1px solid #444;
+                border-bottom: 1px solid #3a3a3a;
                 font-size: 14px;
-            }
-            QListWidget::item:selected {
-                background-color: #444;
-                color: #00bfff;
-            }
+            }}
+            QListWidget::item:selected {{
+                background-color: #2c2c2c;
+                color: {ACCENT};
+            }}
         """)
-        self.users_list.setFixedWidth(275)
         right_panel.addWidget(self.users_list)
 
         label_archivos = QLabel("Archivos")
@@ -255,26 +340,34 @@ class TunnelPanel(QWidget):
         right_panel.addWidget(label_archivos)
 
         self.files_list = QListWidget()
-        self.files_list.setFixedWidth(275)
-        self.files_list.setStyleSheet("background-color: #000; color: white;")
-        # Descargar el archivo con un solo clic
+        self.files_list.setFixedWidth(260)
+        self.files_list.setStyleSheet(self.users_list.styleSheet())
         self.files_list.itemClicked.connect(self._download_file_from_list)
         right_panel.addWidget(self.files_list)
 
         right_container = QWidget()
         right_container.setLayout(right_panel)
-        right_container.setFixedWidth(300)
+        right_container.setFixedWidth(260)
         main_layout.addWidget(right_container)
 
+        # ==== Sonidos ====
         self.sound_join = QSoundEffect()
         self.sound_join.setSource(QUrl.fromLocalFile(os.path.abspath("assets/sounds/join.wav")))
-        self.sound_join.setVolume(0.7)  # Volumen opcional entre 0.0 y 1.0
+        self.sound_join.setVolume(0.7)
 
         self.sound_leave = QSoundEffect()
         self.sound_leave.setSource(QUrl.fromLocalFile(os.path.abspath("assets/sounds/leave.wav")))
         self.sound_leave.setVolume(0.7)
 
+        # ==== Timer Participantes ====
+        self.participant_timer = QTimer(self)
+        self.participant_timer.timeout.connect(self._actualizar_participantes_periodicamente)
+        self.participant_timer.setInterval(8000)
+        self.participant_timer.start()
+
         self.actualizar_lista_tuneles()
+
+   
 
     # FUNCIONES!!!!
 

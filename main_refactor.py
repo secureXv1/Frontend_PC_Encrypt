@@ -38,26 +38,131 @@ if QtWidgets:
     from ui.panels.encryption_panel import EncryptionPanel
     from ui.panels.settings_panel import SettingsPanel
 
+    class CustomTitleBar(QtWidgets.QWidget):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.parent = parent
+            self.setFixedHeight(35)
+            self.setStyleSheet("background-color: #1a1a1a; color: white;")
+
+            layout = QtWidgets.QHBoxLayout(self)
+            layout.setContentsMargins(10, 0, 10, 0)
+
+            self.title = QtWidgets.QLabel("Encrypt")
+            self.title.setStyleSheet("font-weight: bold; font-size: 22px; color: white;")
+
+            layout.addWidget(self.title)
+            layout.addStretch()
+
+            # Botón Minimizar
+            self.btn_minimize = QtWidgets.QPushButton("–")
+            self.btn_minimize.setFixedSize(30, 30)
+            self.btn_minimize.setStyleSheet("""
+                QPushButton {
+                    background-color: #2a2a2a;
+                    border: none;
+                    color: white;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #444444;
+                }
+            """)
+            self.btn_minimize.clicked.connect(self.minimize_window)
+
+            # Botón Maximizar
+            self.btn_maximize = QtWidgets.QPushButton("□")
+            self.btn_maximize.setFixedSize(30, 30)
+            self.btn_maximize.setStyleSheet("""
+                QPushButton {
+                    background-color: #2a2a2a;
+                    border: none;
+                    color: white;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #444444;
+                }
+            """)
+            self.btn_maximize.clicked.connect(self.maximize_window)
+
+            # Botón Cerrar
+            self.btn_close = QtWidgets.QPushButton("✕")
+            self.btn_close.setFixedSize(30, 30)
+            self.btn_close.setStyleSheet("""
+                QPushButton {
+                    background-color: #2a2a2a;
+                    border: none;
+                    color: white;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #ff5555;
+                }
+            """)
+            self.btn_close.clicked.connect(self.close_window)
+
+            # Agregar botones a la barra de título
+            layout.addWidget(self.btn_minimize)
+            layout.addWidget(self.btn_maximize)
+            layout.addWidget(self.btn_close)
+
+        def close_window(self):
+            if self.parent:
+                self.parent.close()
+
+        def minimize_window(self):
+            if self.parent:
+                self.parent.showMinimized()
+
+        def maximize_window(self):
+            if self.parent.isMaximized():
+                self.parent.showNormal()
+            else:
+                self.parent.showMaximized()
+
+        def mousePressEvent(self, event):
+            self.offset = event.globalPos()
+
+        def mouseMoveEvent(self, event):
+            if event.buttons() == QtCore.Qt.LeftButton:
+                delta = event.globalPos() - self.offset
+                self.parent.move(self.parent.pos() + delta)
+                self.offset = event.globalPos()
+
+
     class MainWindow(QtWidgets.QMainWindow):
         def __init__(self, uuid, hostname, sistema):
             super().__init__()
-            self.setGeometry(50, 50, 1600, 1000)  # x, y, ancho, alto
+            self.setGeometry(50, 50, 1200, 800)  # Más pequeño
             self.setWindowTitle("Encrypt")
+            self.setWindowFlags(QtCore.Qt.FramelessWindowHint)  # Oculta barra superior del SO
 
             main_widget = QtWidgets.QWidget()
-            self.setCentralWidget(main_widget)
-            layout = QtWidgets.QHBoxLayout(main_widget)
+            main_layout = QtWidgets.QVBoxLayout(main_widget)
+            main_layout.setContentsMargins(0, 0, 0, 0)
+            main_layout.setSpacing(0)
 
-            # Crear páginas
+            # Barra personalizada
+            self.title_bar = CustomTitleBar(self)
+            main_layout.addWidget(self.title_bar)
+
+            # Contenido principal
+            content_widget = QtWidgets.QWidget()
+            layout = QtWidgets.QHBoxLayout(content_widget)
+
             self.pages = QtWidgets.QStackedWidget()
-            self.pages.addWidget(HomePanel())  # index 0
-            self.pages.addWidget(TunnelPanel(uuid=uuid, hostname=hostname, sistema=sistema))  # index 1
-            self.pages.addWidget(EncryptionPanel())  # index 2
-            self.pages.addWidget(SettingsPanel())  # index 3
+            self.pages.addWidget(HomePanel())           # index 0
+            self.pages.addWidget(EncryptionPanel())     # index 1
+            self.pages.addWidget(TunnelPanel(uuid=uuid, hostname=hostname, sistema=sistema))  # index 2
+            self.pages.addWidget(SettingsPanel())       # index 3
 
             sidebar = Sidebar(self.cambiar_pagina)
             layout.addWidget(sidebar, 1)
             layout.addWidget(self.pages, 5)
+
+            main_layout.addWidget(content_widget)
+            self.setCentralWidget(main_widget)
 
         def cambiar_pagina(self, index):
             self.pages.setCurrentIndex(index)
@@ -67,6 +172,7 @@ if QtWidgets:
             marcar_cliente_desconectado(uuid)
             print(f"🛑 Cliente {uuid} marcado como desconectado.")
             event.accept()
+
 
     def main():
         logger.info("Iniciando interfaz gráfica...")
@@ -115,6 +221,9 @@ if QtWidgets:
             QFrame {
                 background-color: #1f1f1f;
                 border-radius: 10px;
+            }
+            QMainWindow {
+                border: 1px solid #303030;
             }
         """)
 
