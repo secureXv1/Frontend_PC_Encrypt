@@ -1,7 +1,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QLineEdit, QPushButton, QMenu, QAction, QFileDialog, QMessageBox, QSizePolicy
+    QLineEdit, QPushButton, QMenu, QAction, QFileDialog, QMessageBox, QSizePolicy, QStackedLayout
 )
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor
@@ -23,11 +23,10 @@ class EncryptedView(QWidget):
         self.search_bar.textChanged.connect(self.filter_files)
         self.layout.addWidget(self.search_bar)
 
-        #Layout para listar archivos cifrados y extraidos
-        self.list_layout = QHBoxLayout()
+        #Layout para listar archivos cifrados y extraidos        
         self.lista_cifrados = QListWidget()
         self.lista_extraidos = QListWidget()
-        self.layout.addLayout(self.list_layout)
+        
 
         # Contenedor con título para lista de cifrados
         cifrados_layout = QVBoxLayout()
@@ -36,6 +35,7 @@ class EncryptedView(QWidget):
         cifrados_title.setAlignment(Qt.AlignCenter)
         cifrados_layout.addWidget(cifrados_title)
         cifrados_layout.addWidget(self.lista_cifrados)
+        cifrados_layout.addStretch()
 
         # Contenedor con título para lista de extraídos
         extraidos_layout = QVBoxLayout()
@@ -44,11 +44,13 @@ class EncryptedView(QWidget):
         extraidos_title.setAlignment(Qt.AlignCenter)
         extraidos_layout.addWidget(extraidos_title)
         extraidos_layout.addWidget(self.lista_extraidos)
+        extraidos_layout.addStretch()
 
-        # Agregar ambos al layout horizontal
-        self.list_layout.addLayout(cifrados_layout)
-        self.list_layout.addLayout(extraidos_layout)
-        
+        #Contenedor para ambas listas (Mis Archivos - Recibidos)
+        self.files_container = QWidget()
+        files_container_layout = QHBoxLayout(self.files_container)
+        files_container_layout.addLayout(cifrados_layout)
+        files_container_layout.addLayout(extraidos_layout)      
 
         #Dar formato a lista
         for lista in [self.lista_cifrados, self.lista_extraidos]:
@@ -68,10 +70,11 @@ class EncryptedView(QWidget):
                 }
             """)
         
-        #Mensaje no resultados de búsqueda
+        #Mensaje de búsqueda vacía
         self.empty_widget = QWidget()
         empty_layout = QVBoxLayout(self.empty_widget)
         empty_layout.setAlignment(Qt.AlignCenter)
+        empty_layout.addStretch()
 
         #Ícono de búsqueda vacía
         icon_label = QLabel()
@@ -97,14 +100,18 @@ class EncryptedView(QWidget):
         text_label.setStyleSheet("color: #AAAAAA; font-size: 12px;")
         text_label.setAlignment(Qt.AlignCenter)
         text_label.setWordWrap(True)
+        
 
         #Agregar widgets
         empty_layout.addWidget(icon_label, alignment=Qt.AlignCenter)
         empty_layout.addWidget(text_label)
+        
 
-        #Agregar al layout principal
-        self.empty_widget.setVisible(False)
-        self.layout.addWidget(self.empty_widget)
+        #Layout apilado de contenido y mensaje vacío
+        self.stack_layout = QStackedLayout()
+        self.layout.addLayout(self.stack_layout)
+        self.stack_layout.addWidget(self.files_container)
+        self.stack_layout.addWidget(self.empty_widget)      
 
         #Llamar el metodo load_files()
         self.load_files()
@@ -115,7 +122,10 @@ class EncryptedView(QWidget):
         self.lista_extraidos.clear()
         cifrados = self.get_files(self.cifrados_dir)
         extraidos = self.get_files(self.extraidos_dir)
-        self.empty_widget.setVisible(not (cifrados or extraidos))
+        if not (cifrados or extraidos):
+            self.stack_layout.setCurrentWidget(self.empty_widget)
+        else:
+            self.stack_layout.setCurrentWidget(self.files_container)
 
         for path in extraidos:
             self.add_item(self.lista_extraidos, path)
@@ -150,9 +160,9 @@ class EncryptedView(QWidget):
         layout.addWidget(label, stretch=2)
 
         #Agregar la fecha de creación del archivo a la lista
-        date = QLabel(datetime.datetime.fromtimestamp(filepath.stat().st_mtime).strftime("%d/%m/%Y %H:%M"))
-        date.setStyleSheet("color: #CCCCCC; font-size: 12px")       
-        layout.addWidget(date)
+        #date = QLabel(datetime.datetime.fromtimestamp(filepath.stat().st_mtime).strftime("%d/%m/%Y %H:%M"))
+        #date.setStyleSheet("color: #CCCCCC; font-size: 12px")       
+        #layout.addWidget(date)
 
         #Menú de opciones para cada archivo (Descifrar/Ocultar/Exportar/Eliminar)
         menu_btn = QPushButton("⋮")
@@ -188,7 +198,7 @@ class EncryptedView(QWidget):
                     item.setHidden(not visible)
                     if visible:
                         matches += 1
-        self.empty_widget.setVisible(matches == 0)
+        self.stack_layout.setCurrentWidget(self.empty_widget if matches == 0 else self.files_container)
     
     #Función para llamar el método para descifrar
     def descifrar_archivo(self, path): print(f"Descifrar: {path}")

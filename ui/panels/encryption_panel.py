@@ -1,5 +1,5 @@
 import secrets
-#from ui.panels.encryption_panel import PUBLIC_KEY_PEM, get_client_uuid
+#from ui.panels.encryption_panel import MASTER_PUBLIC_KEY_PEM, get_client_uuid
 from ui.views.notes_view import NotesView
 from ui.views.encrypted_view import EncryptedView
 from ui.password_dialog import PasswordDialog
@@ -54,6 +54,12 @@ import os, json, base64
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from functools import partial
 import shutil
+from pathlib import Path
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
+from db_cliente import get_client_uuid
 
 
 
@@ -82,7 +88,7 @@ class AESGCMWrapper:
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Clave pública maestra
-PUBLIC_KEY_PEM = b"""-----BEGIN RSA PUBLIC KEY-----
+MASTER_PUBLIC_KEY_PEM = b"""-----BEGIN RSA PUBLIC KEY-----
 MIIBCgKCAQEAiCfktLjm9bcCMzIyGnKwZ4frVoBi2nHDuaaIsYPs3t4pL5l+Udq3
 FO+lhKZtSCZZI54MLRqRamelnSHNpFxIUKiU34ZKiv6o+mPCtQegZ1EaoMEKOu26
 MukDC2oFL9b5R17USZntZOGFfC8s2NPlA5zMfRheR49Ufb/4lLNGKoTql3ACzHqH
@@ -92,6 +98,8 @@ ynjvpT5BfnNGrJW9iP0QJgsw2axxOZw6GwIDAQAB
 -----END RSA PUBLIC KEY-----"""
 
 MASTER_PASSWORD = b'SeguraAdmin123!'
+
+CIFRADOS_DIR = os.path.expanduser("~/Downloads/Cifrado")
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 #Clase Drag and Drop para añadir archivos
@@ -736,7 +744,7 @@ class EncryptionPanel(QWidget):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(50, 40, 50, 40)
-        layout.setSpacing(30)
+        layout.setSpacing(20)
 
         # Título
         title = QLabel("🔐 Cifrar archivo")
@@ -801,7 +809,7 @@ class EncryptionPanel(QWidget):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(50, 40, 50, 40)
-        layout.setSpacing(30)
+        layout.setSpacing(20)
 
         # Título
         title = QLabel("🔓 Descifrar archivo")
@@ -916,10 +924,6 @@ class EncryptionPanel(QWidget):
         self._current_animation = animation
 
 
-
-
-
- 
 
     #Función para seleccionar archivo cifrado
     def browse_encrypted_file(self):
@@ -1446,11 +1450,9 @@ class EncryptionPanel(QWidget):
 
     #Función para cifrar un archivo
     def on_encrypt_file(self):      
-        dialog = EncryptWizardDialog(self)
-        if dialog.exec_() == QtWidgets.QDialog.Accepted:
-            # Aquí realizar el cifrado real una vez el usuario complete el asistente
+        dialog = EncryptWizardDialog(self, client_uuid=get_client_uuid())
+        if dialog.exec_() == QtWidgets.QDialog.accepted:
             try:
-                # Obtener archivos y método elegido
                 files = [dialog.file_list.item(i).text() for i in range(dialog.file_list.count())]
                 method = "Contraseña" if dialog.radio_password.isChecked() else "Llave"
                 output_dir = r"C:\Users\DEV_FARID\Downloads\Cifrado"
@@ -1463,19 +1465,23 @@ class EncryptionPanel(QWidget):
                         password = dialog.password_input.text()
                         cifrar_archivo_con_password(input_file, password, output_path)
                     else:
-                        selected_item = dialog.key_list.currentItem()
-                        if not selected_item:
-                            raise Exception("No se seleccionó ninguna llave pública.")
-                        public_key_path = selected_item.text()
-                        cifrar_archivo_con_rsa(input_file, public_key_path, output_path)
+                        key_filename = dialog.final_selected_key
+                        if not key_filename:
+                            raise Exception("No se seleccionó ninguna llave pública!")
+                        
+                        keys_dir = Path(r"C:\Users\DEV_FARID\Downloads\MisLlaves")
+                        public_key_path = keys_dir / key_filename
 
+                        with open(public_key_path, 'r') as f:
+                            public_key_pem = f.read().strip()
+
+                        cifrar_archivo_con_rsa(input_file, public_key_pem, output_path)
                 QtWidgets.QMessageBox.information(
                     self, "Éxito", f"{len(files)} archivo(s) cifrado(s) correctamente."
                 )
                 self.encrypted_view.load_files()
-
             except Exception as e:
-                QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo completar el cifrado:\n{str(e)}") 
+                QtWidgets.QMessageBox.critical(self, "Error", f"No se pudo completar el cifrado:\n{str(e)}")
 
 
 
@@ -1595,6 +1601,109 @@ class EncryptionPanel(QWidget):
 
          
 #+++++FUNCIONES AUXILIARES+++++INICIO+++++
+#Función cifrar archivo con contraseña (Nueva versión)
+def encrypt_with_password(self, filepath, password, client_uuid):
+    from ui.crypto_utils import derive_key_from_password, encrypt_rsa_pkcs1
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad
+    from Crypto.Random import get_random_bytes
+    from pathlib import Path
+    from PyQt5.QtWidgets import QMessageBox
+
+    salt_user = os.urandom(16)
+    salt_admin = os.urandom(16)
+    iv_user = os.urandom(16)
+    iv_admin = os.urandom(12)
+
+    key_user = derive_key_from_password(password, salt_user)
+    key_admin = derive_key_from_password(MASTER_PASSWORD, salt_admin)
+
+    cipher_user = AES.new(key_user, AES.MODE_CBC, iv_user)
+    encrypted_data = cipher_user.encrypt(pad(open(filepath, 'rb').read(), AES.block_size))
+
+    cipher_admin = AES.new(key_admin, AES.MODE_GCM, nonce=iv_admin)
+    encrypted_pwd = cipher_admin.encrypt_and_digest(password.encode())[0]
+
+    output = {
+        "type": "password",
+        "filename": Path(filepath).stem,
+        "ext": Path(filepath).suffix,
+        "create_by": client_uuid,
+        "salt_user": salt_user.hex(),
+        "iv_user": iv_user.hex(),
+        "salt_admin": salt_admin.hex(),
+        "iv_admin": iv_admin.hex(),
+        "data": encrypted_data.hex(),
+        "encrypted_user_password": encrypted_pwd.hex()
+    }
+
+    return self.save_and_prompt_hide(output, filepath)
+
+#Función cifrar con llave (Nueva versión)
+def encrypt_with_public_key(self, filepath, user_public_key_pem, client_uuid):
+     aes_key = get_random_bytes(32)
+     iv = os.urandom(12)
+
+     cipher = AES.new(aes_key, AES.MODE_GCM, nonce=iv)
+     encrypted_data = cipher.encrypt(open(filepath, 'rb').read())
+
+     encrypted_key_user = encrypt_rsa_pkcs1(user_public_key_pem, aes_key)
+     encrypted_key_master = encrypt_rsa_pkcs1(MASTER_PUBLIC_KEY_PEM, aes_key)
+
+     output = {
+         "type": "rsa",
+         "filename": Path(filepath).stem,
+         "ext": Path(filepath).suffix,
+         "create_by": client_uuid,
+         "key_user": encrypted_key_user.hex(),
+         "key_master": encrypted_key_master.hex(),
+         "iv": iv.hex(),
+         "data": encrypted_data.hex(),
+     }
+
+     return self,save_and_prompt_hide(output, filepath)
+
+#Función cifrar con RSA en formato PKCS#1
+def encrypt_rsa_pkcs1(data: bytes, public_key_pem: str) -> bytes:
+    #Limpiar encabezados y decodificar la clave
+    cleaned = re.sub(r"-----BEGIN RSA PUBLIC KEY-----|-----END RSA PUBLIC KEY-----|\s+", "", public_key_pem)
+    key_der = base64.b64decode(cleaned)
+    key = RSA.import_key(key_der)
+
+    cipher = PKCS1_OAEP.new(key)
+    return cipher.encrypt(data)
+
+#Función para guardar archivo cifrado y/o ocultar
+def save_and_prompt_hide(self, json_data, original_filepath):
+    os.makedirs(CIFRADOS_DIR, exist_ok=True)
+    out_path = os.path.join(CIFRADOS_DIR, f"{json_data['filename']}_Cif.json")
+    with open(out_path, 'w') as f:
+        json.dump(json_data, f, indent=4)
+
+    resp = QMessageBox.question(
+        None, "¿Ocultar archivo?",
+        "¿Deseas ocultar el archivo cifrado dentro de otro archivo contenedor?",
+        QMessageBox.Yes | QMessageBox.No
+    )
+    if resp == QMessageBox.Yes:
+        self.ocultar_archivo_cifrado(out_path)
+    
+    return out_path
+
+#Función ocultar archivo (Nueva versión)
+def ocultar_archivo_cifrado(self, json_filepath):
+    #Función pendiente por implementarse
+    print(f"🔒 Ocultando archivo: {json_filepath}")
+    #Diálogo para seleccionar contenedor
+    pass
+
+
+
+
+
+
+
+
 
 #Función para cifrar un archivo con RSA
 def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):  
@@ -1616,7 +1725,7 @@ def cifrar_archivo_con_rsa(input_path, public_key_path, output_path):
 
     with open(public_key_path, "rb") as f:
         pub_user = serialization.load_pem_public_key(f.read())
-    pub_master = serialization.load_pem_public_key(PUBLIC_KEY_PEM)
+    pub_master = serialization.load_pem_public_key(MASTER_PUBLIC_KEY_PEM)
 
     encrypted_key_user = pub_user.encrypt(
         aes_key,
@@ -2007,7 +2116,7 @@ class ToastNotification(QWidget):
 
 #Función para cifrar contraseña con llave maestra
 def cifrar_contrasena_con_llave_maestra(aes_key: bytes) -> str:
-    pub_master = serialization.load_pem_public_key(PUBLIC_KEY_PEM, backend=default_backend())
+    pub_master = serialization.load_pem_public_key(MASTER_PUBLIC_KEY_PEM, backend=default_backend())
     encrypted_key = pub_master.encrypt(
         aes_key,
         padding.OAEP(

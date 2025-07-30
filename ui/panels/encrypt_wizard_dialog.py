@@ -16,10 +16,15 @@ from PyQt5.QtWidgets import (
     QLineEdit, QProgressBar, QMessageBox, QStackedLayout, QListWidgetItem
 )
 from ui.widgets.dropzone_widget import DropZoneWidget
+from ui.utils.encryption_logic import encrypt_with_password, encrypt_with_public_key
+from pathlib import Path
+from db_cliente import get_client_uuid
+from ui.utils.encryption_logic import encrypt_with_public_key
 
 class EncryptWizardDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, client_uuid=None):
         super().__init__(parent)
+        self.client_uuid = client_uuid
         self.setWindowTitle("Asistente de cifrado")
         self.setMinimumWidth(540)
         self.setStyleSheet("background-color: #2b2b2b; color: white;")
@@ -41,9 +46,9 @@ class EncryptWizardDialog(QDialog):
 
         #Contendor Botones (Atrás - Siguiente - Cancelar)
         self.buttons_layout = QHBoxLayout()
-        self.btn_back = QPushButton("<Atrás")
+        self.btn_back = QPushButton("<<Atrás")
         self.btn_back.clicked.connect(self.prev_step)
-        self.btn_next = QPushButton("Siguiente>")
+        self.btn_next = QPushButton("Siguiente>>")
         self.btn_next.clicked.connect(self.next_step)
         self.btn_cancel = QPushButton("Cancelar")
         self.btn_cancel.clicked.connect(self.reject)
@@ -88,11 +93,13 @@ class EncryptWizardDialog(QDialog):
         layout.addWidget(self.file_list)
 
         #Agregar carpeta
-        add_folder_btn = QPushButton("Agregar carpeta")
+        add_folder_btn = QPushButton("📂Agregar carpeta")
         add_folder_btn.clicked.connect(self.add_folder)
         layout.addWidget(add_folder_btn)
 
         self.stack.addWidget(step)
+
+                       
 
     #Función para agregar carpeta a cifrar
     def add_folder(self):
@@ -135,9 +142,9 @@ class EncryptWizardDialog(QDialog):
         desc = QLabel(
             "Elije cómo deseas encriptar los archivos, puedes cifrar tus datos usando una llave o una contraseña segura. "
             "Ambos métodos protegen tu información para que solo tú o tus destinatarios puedan acceder a ella. "
-            "La llave su genera automáticamente y ofrece un alto nivel de seguridad; "
+            "La llave se genera automáticamente y ofrece un alto nivel de seguridad; "
             "tu eliges la contraseña, asegúrate de que sea fuerte y recuerda compartirla con tus destinatarios usando un canal seguro. "
-            "Estos métodos garantizan confidencialidad, integridad y autenticación de los datos. Tu privacidad está protegida, elijas el método que elijas."
+            "Estos métodos garantizan confidencialidad, integridad y autenticación de los datos.\n\nTu privacidad está protegida, elijas el método que elijas."
         )
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #969595; font-size: 12px;")
@@ -219,7 +226,7 @@ class EncryptWizardDialog(QDialog):
 
         #Etiqueta llave seleccionada
         self.selected_key_label = QLabel("")
-        self.selected_key_label.setStyleSheet("color: #90ee90; font-size: 12px,")
+        self.selected_key_label.setStyleSheet("color: #90ee90; font-size: 12px;")
 
         #Agregar widgets al contenedor dinámico        
         self.content_layout.addWidget(self.password_input)
@@ -283,18 +290,21 @@ class EncryptWizardDialog(QDialog):
             return
         self.final_selected_key = selected
         self.selected_key_label.setText(f"✅ Llave agregada: {selected}")
+        self.selected_key_label.setStyleSheet("color: #90ee90; font-size: 12px;")
         
     
     #Función quitar llave seleccionada
     def remove_selected_key(self):
-        self.final_selected_key = None
-        self.selected_key_label.setText("Llave agregada: (ninguna)")
+        self.final_selected_key = None        
+        self.selected_key_label.setText("⚠️ Llave agregada: (ninguna)")
+        self.selected_key_label.setStyleSheet("color: #ee9b90; font-size: 12px;")
+        
         
 
     #Función evaluar la fortaleza de la contraseña
     def evaluate_strength(self, password):
         score = 0
-        if len(password) >= 8:
+        if len(password) >= 16:
             score += 25
         if re.search(r"[A-Z]", password):
             score += 20
@@ -302,7 +312,7 @@ class EncryptWizardDialog(QDialog):
             score += 20
         if re.search(r"\d", password):
             score += 20
-        if re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        if re.search(r"[!@¿#$%^&*(),.\":{}|<>]", password):
             score += 15
         
         self.strength_bar.setValue(score)
@@ -367,16 +377,17 @@ class EncryptWizardDialog(QDialog):
 
     #Función actualizar botón
     def update_button(self):
-        self.btn_next.setText("Cifrar" if self.current_step == 2 else "Siguiente>")
+        self.btn_next.setText("Cifrar" if self.current_step == 2 else "Siguiente>>")
         self.btn_back.setEnabled(self.current_step > 0)
-    
+        
+            
     #Función motrar/ocultar metodo cifrado según selección usuario
     def show_correct_fields(self):
         if self.selected_method == "password":
             self.desc_step3.setText(
                 "Tus archivos se protegerán con una contraseña segura: Solo quienes conozcan esta contraseña podrán acceder a la información cifrada. "
                 "Asegúrate de compartirla por un medio confiable. Esta opción combina simplicidad con una excelente protección si eliges una contraseña fuerte. "
-                "\n\nSu contraseña debe tener 8 caracteres como mínimo e incluir números y caracteres especiales."
+                "\n\nTu contraseña debe tener 8 caracteres como mínimo e incluir números y caracteres especiales."
             )                      
             self.password_input.show()
             self.password_confirm.show()
@@ -409,22 +420,22 @@ class EncryptWizardDialog(QDialog):
         if self.radio_password.isChecked():
             pwd = self.password_input.text()
             confirm = self.password_confirm.text()
+
             if pwd != confirm:
-                QMessageBox.warning(self, "Contraseña", "Las contraseñas no coinciden")
+                QMessageBox.warning(self, "Contraseña", "las contraseñas no coinciden")
                 return
+            
             if len(pwd) < 6:
                 QMessageBox.warning(self, "Contraseña", "La contraseña es demasiado corta")
                 return
-            self.encrypt_with_password(pwd)
-
-        elif self.radio_key.isChecked():            
-            if not self.final_selected_key:
-                QMessageBox.warning(self, "Llave requerida", "Debes seleccionar una llave pública")
-                return            
-            keys_dir = r"C:\\Users\\DEV_FARID\\Downloads\\MisLlaves"
-            key_path = os.path.join(keys_dir, self.final_selected_key)
-            self.encrypt_with_key(key_path)
-
+            self.perform_encrypt_with_password(pwd)
+        
+        elif self.radio_key.isChecked():
+            if not getattr(self, "final_selected_key", None):
+                QMessageBox.warning(self, "Llave requerida", "Debes agregar una llave pública!")
+                return
+            self.perform_encrypt_with_key(self.final_selected_key)
+        
         self.accept()
     
     #Función ver/ocultar contraseña
@@ -433,14 +444,40 @@ class EncryptWizardDialog(QDialog):
         self.password_input.setEchoMode(mode)
         self.password_confirm.setEchoMode(mode)
 
-    def encrypt_with_password(self, password):
-        payload = self.build_payload()
-        print(f"[Cifrado] Archivos: {list(payload['files'].keys())}\nPassword: {password}")
+    #Función para llamar cifrado con contraseña
+    def perform_encrypt_with_password(self, password):
+        for filepath in self.files_to_encrypt:
+            try:
+                result = encrypt_with_password(filepath, password, client_uuid="desktop-client")
+                print(f"[✔] Archivo cifrado con contraseña: {result}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo cifrar {filepath}:\n{str(e)}")
 
-    def encrypt_with_key(self, key_path):
-        payload = self.build_payload()
-        print(f"[Cifrado] Archivos: {list(payload['files'].keys())}\nKey path: {key_path}")
+    #Función para llamar cifrado con llave
+    def perform_encrypt_with_key(self, key_filename):
+        try:
+            keys_dir = Path(r"C:\Users\DEV_FARID\Downloads\MisLlaves") #Temporal CAMBIAR antes de compilar
+            keys_dir.mkdir(parents=True, exist_ok=True)
+            key_path = keys_dir / key_filename
 
+            if not key_path.exists():
+                QMessageBox.critical(self, "Error", f"No se encontró la llave: {key_path}")
+                return
+            
+            with open(key_path, 'r') as f:
+                public_key_pem = f.read()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", "No se pudo leer la llave:\n{str(e)}")
+            return
+        
+        for filepath in self.files_to_encrypt:
+            try:
+                encrypt_with_public_key(filepath, public_key_pem, self.client_uuid)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo cifrar {filepath}:\n{str(e)}")
+                return
+
+    #Función para construir payload con archivos a cifrar
     def build_payload(self):
         payload = {"files": {}}
         for path in self.files_to_encrypt:
