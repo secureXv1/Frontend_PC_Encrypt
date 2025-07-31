@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import ( QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit, QHBoxLayout,QTabWidget,
 QFileDialog, QMessageBox, QScrollArea, QFrame, QSpacerItem, QSizePolicy, QDialog, QFormLayout, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import (Qt,QTimer, QPropertyAnimation, QVariantAnimation, pyqtProperty, pyqtSignal, QUrl,)
-from PyQt5.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter, QFont
+from PyQt5.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter, QFont, QMovie
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtMultimedia import QSoundEffect
 import base64, json
@@ -13,6 +13,80 @@ import requests
 import os
 from datetime import datetime
 
+class EmptyTunnelNotice(QWidget):
+    def __init__(self, on_connect_callback=None, on_create_callback=None):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+
+        # Ruta del GIF animado
+        assets_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "images"))
+        gif_path = os.path.join(assets_path, "no_tunnels.gif")
+
+        from PyQt5.QtCore import QSize
+
+        self.animation = QLabel()
+        self.movie = QMovie(gif_path)
+        self.movie.setScaledSize(QSize(90, 90))
+
+        if not self.movie.isValid():
+            print("❌ El GIF no se cargó correctamente:", gif_path)
+        else:
+            print("✅ GIF cargado correctamente:", gif_path)
+
+        self.animation.setMovie(self.movie)
+        self.movie.start()
+        layout.addWidget(self.animation, alignment=Qt.AlignHCenter)
+
+        # Mensaje
+        message = QLabel("No hay ningún túnel conectado")
+        message.setAlignment(Qt.AlignCenter)
+        message.setStyleSheet("color: #CCCCCC; font-size: 18px; font-weight: bold; margin: 10px;")
+        layout.addWidget(message)
+
+        # Botón conectar
+        self.connect_button = QPushButton("🔗 Conectar a un túnel")
+        self.connect_button.setCursor(Qt.PointingHandCursor)
+        self.connect_button.setStyleSheet(self._button_style())
+        layout.addWidget(self.connect_button)
+
+        # Botón crear
+        self.create_button = QPushButton("➕ Crear túnel")
+        self.create_button.setCursor(Qt.PointingHandCursor)
+        self.create_button.setStyleSheet(self._button_style(secondary=True))
+        layout.addWidget(self.create_button)
+
+        if on_connect_callback:
+            self.connect_button.clicked.connect(on_connect_callback)
+        if on_create_callback:
+            self.create_button.clicked.connect(on_create_callback)
+
+    def _button_style(self, secondary=False):
+        if secondary:
+            return """
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    padding: 10px 20px;
+                    font-size: 14px;
+                    border-radius: 8px;
+                }
+                QPushButton:hover {
+                    background-color: #388E3C;
+                }
+            """
+        return """
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                padding: 10px 20px;
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """
 
 def formatear_timestamp(timestamp_ms):
     try:
@@ -366,6 +440,16 @@ class TunnelPanel(QWidget):
         self.participant_timer.start()
 
         self.actualizar_lista_tuneles()
+
+        if self.tab_widget.count() == 0:
+            aviso = EmptyTunnelNotice(
+                on_connect_callback=self.mostrar_dialogo_conectar_tunel,
+                on_create_callback=self.mostrar_dialogo_crear_tunel
+            )
+            self.tab_widget.addTab(aviso, "-")
+            self.tab_widget.setTabEnabled(0, False)
+
+
 
    
 
@@ -895,6 +979,10 @@ class TunnelPanel(QWidget):
             self.users_list.clear()
             self.files_list.clear()
             self.participant_timer.stop()
+
+            # 👇 Mostrar el aviso visual
+            self.tab_widget.addTab(EmptyTunnelNotice(on_connect_callback=self.mostrar_menu_tunel), "Sin conexión")
+            self.tab_widget.setTabEnabled(0, False)  # Desactivar pestaña para que no se cierre
 
         cards = self.tunnel_cards.get(tunel_id, [])
         for card in cards:

@@ -1,7 +1,8 @@
 from PyQt5.QtSvg import QSvgRenderer
-from PyQt5.QtGui import QPixmap, QPainter, QColor
-from PyQt5.QtCore import Qt, QByteArray
+from PyQt5.QtGui import QPixmap, QPainter, QColor, QMovie
+from PyQt5.QtCore import Qt, QByteArray, QSize
 from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout
+
 import os
 import re
 
@@ -57,27 +58,51 @@ class HomePanel(QWidget):
         main_layout.setContentsMargins(40, 40, 40, 40)
         main_layout.setSpacing(40)
 
-        # 📝 Texto descriptivo de la izquierda
+        # 🌀 Contenedor vertical: GIF + texto
+        texto_con_gif_layout = QVBoxLayout()
+        texto_con_gif_layout.setAlignment(Qt.AlignTop)
+
+        # 🎞️ GIF animado (sin fondo)
+        gif_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "images", "welcome.gif"))
+        gif_label = QLabel()
+        movie = QMovie(gif_path)
+        movie.setScaledSize(QSize(180, 180))
+        gif_label.setMovie(movie)
+        gif_label.setAttribute(Qt.WA_TranslucentBackground)
+        gif_label.setStyleSheet("background-color: transparent;")
+        gif_label.setAlignment(Qt.AlignHCenter)
+        gif_label.setContentsMargins(0, 0, 0, 0)
+        movie.start()
+
+        texto_con_gif_layout.addWidget(gif_label)
+
+        # 📝 Texto descriptivo
         texto_label = QLabel()
         texto_label.setText("""
-            <div style='color: #00BCD4; font-size: 40px; font-weight: bold;'>
+            <div style='color: #00BCD4; font-size: 50px; font-weight: bold;'>
                 Encrypt
             </div>
-            <div style='color: white; font-size: 30px; font-weight: bold;'>
-                    Comunicación y Cifrado Seguro, Todo en Uno
+            <div style='color: white; font-size: 25px; font-weight: bold;'>
+                Comunicación y Cifrado Seguro, Todo en Uno
             </div>          
             <div style='color: #cccccc; font-size: 15px; margin-top: 12px;'>
                 Diseñada para proteger lo que más importa, combina cifrado robusto, anonimato real y 
                 control total sobre tus datos. Desde archivos sensibles hasta conversaciones críticas, todo permanece blindado.
-                <br><br>
-               
             </div>
         """)
         texto_label.setTextFormat(Qt.RichText)
         texto_label.setWordWrap(True)
-        texto_label.setStyleSheet("background-color: rgba(0,0,0,0.1); padding: 20px; border-radius: 10px;")
+        texto_label.setAlignment(Qt.AlignTop)
+        texto_label.setStyleSheet("background-color: transparent; padding: 20px; border-radius: 10px;")
 
-        main_layout.addWidget(texto_label, 2)
+        texto_con_gif_layout.addWidget(texto_label)
+
+        # 🧱 Contenedor transparente
+        texto_container = QWidget()
+        texto_container.setLayout(texto_con_gif_layout)
+        texto_container.setStyleSheet("background-color: transparent;")
+
+        main_layout.addWidget(texto_container, 2)
 
         # 📋 Panel derecho con ítems
         content_layout = QVBoxLayout()
@@ -117,12 +142,12 @@ class HomePanel(QWidget):
             html = f"""
                 <div>
                     <span style='font-weight:bold;'>{titulo}</span><br>
-                    <span style='display:inline-block; margin-left:0px; font-size:13px; font-weight:normal; color:#cccccc; margin-top:6px;'>{subtitulo}</span>
+                    <span style='display:inline-block; margin-left:0px; font-size:13px; font-weight:normal; color:white; margin-top:6px;'>{subtitulo}</span>
                 </div>
             """
 
             icono_label = QLabel()
-            icono_label.setPixmap(load_colored_svg_icon(icon_path, color="#00BCD4", size=38))
+            icono_label.setPixmap(load_colored_svg_icon(icon_path, color="#FF0000", size=38))
             icono_label.setFixedSize(38, 38)
             icono_label.setScaledContents(True)  # 🔹 Asegura que el pixmap se escale al QLabel
 
@@ -132,7 +157,7 @@ class HomePanel(QWidget):
                 color: white;
                 font-size: 15px;
                 padding: 6px;
-                background-color: rgba(0,0,0,0.0);
+                background-color: rgba(0,0,0,0.3);
                 border-left: 4px solid #00BCD4;
                 border-radius: 6px;
             """)
@@ -153,7 +178,7 @@ class HomePanel(QWidget):
         right_container = QWidget()
         right_container.setLayout(content_layout)
         right_container.setStyleSheet("""
-            background-color: rgba(0, 0, 0, 0.2);
+            background-color: rgba(0, 0, 0, 0);
             border-radius: 12px;
             padding: 20px;
         """)

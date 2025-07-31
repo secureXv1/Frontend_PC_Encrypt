@@ -12,7 +12,6 @@ from PyQt5.QtGui import QPixmap, QPainter
 from db_cliente import get_client_uuid
 from message_bubble import MessageBubble
 
-
 class ChatWindow(QWidget):
     def __init__(self, alias, client, tunnel_id, uuid, on_file_event=None, on_receive_callback=None):
         super().__init__()
