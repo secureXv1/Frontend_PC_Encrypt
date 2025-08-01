@@ -3,8 +3,12 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Util.Padding import pad
 import json, os
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from pathlib import Path
+from Crypto.IO import PEM
+from pyasn1.type.univ import Sequence, Integer
+from pyasn1.codec.der import decoder
+
 
 #===========================================================================
 #Definir llave y contraseña maestra
@@ -21,9 +25,35 @@ zg4+r5xTI+EdH2MwwBm/R8TDAhiECNFW3HLvwATSeRLlD+3jJsC32lhwfFAZjkFn
 """
 #===========================================================================
 
-#Función convertir str en hex
+#Función convertir bytes a hexadecimal
 def to_hex(data: bytes) -> str:
     return data.hex()
+
+#Función para guardar archivo cifrado
+def save_encrypted_file(original_path: str, json_data: dict) -> str:   
+    output_dir = Path(r"C:/Users/DEV_FARID/Downloads/Cifrado")#Directorio solo para pruebas, CAMBIAR al compilar
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / (Path(original_path).stem + "_Cif.json")
+
+    with open(output_file, 'w') as f:
+        json.dump(json_data, f)
+    
+    return str(output_file)
+
+#Función leer llave pública en formato PKCS1
+def load_rsa_public_key(pem_str: str):
+    """
+    Carga una llave pública RSA en formato PKCS1 (-----BEGIN RSA PUBLIC KEY-----)
+    compatible con Android/iOS, usando pycryptodome.
+    """
+    try:
+        #Eliminar encabezado, pie y espacios
+        pem_clean = pem_str.replace("-----BEGIN RSA PUBLIC KEY-----", "").replace(
+            "-----END RSA PUBLIC KEY-----", "").strip().replace("\n", "")
+        der_bytes = b64decode(pem_clean)
+        return RSA.import_key(der_bytes)
+    except Exception as e:
+        raise ValueError("Formato de llave RSA no soportado!") from e
 
 #Función cifrar con password
 def encrypt_with_password(filepath: str, password: str, client_uuid: str) -> str:
@@ -36,7 +66,7 @@ def encrypt_with_password(filepath: str, password: str, client_uuid: str) -> str
     key_user = AES.new(pad(password.encode(), 32), AES.MODE_CBC, iv_user)
     with open(filepath, 'rb') as f:
         data = f.read()
-    encrypted_data = key_user.encrypt(pad(data, 61))
+    encrypted_data = key_user.encrypt(pad(data, 16))
 
     #Cifrar contraseña maestra
     key_admin = AES.new(pad(MASTER_PASSWORD.encode(), 32), AES.MODE_GCM, nonce=iv_admin)
@@ -58,6 +88,8 @@ def encrypt_with_password(filepath: str, password: str, client_uuid: str) -> str
 
     return save_encrypted_file(filepath, json_data)
 
+
+
 #Función cifrar con llave pública
 def encrypt_with_public_key(filepath: str, public_key_pem: str, client_uuid: str) -> str:
     aes_key = get_random_bytes(32)
@@ -67,8 +99,8 @@ def encrypt_with_public_key(filepath: str, public_key_pem: str, client_uuid: str
     with open(filepath, 'rb') as f:
         encrypted_data = cipher_aes.encrypt(f.read())
     
-    user_rsa = RSA.import_key(public_key_pem)
-    master_rsa = RSA.import_key(MASTER_PUBLIC_KEY_PEM)
+    user_rsa = load_rsa_public_key(public_key_pem)
+    master_rsa = load_rsa_public_key(MASTER_PUBLIC_KEY_PEM)
     encrypted_key_user = PKCS1_OAEP.new(user_rsa).encrypt(aes_key)
     encrypted_key_master = PKCS1_OAEP.new(master_rsa).encrypt(aes_key)
 
@@ -86,14 +118,4 @@ def encrypt_with_public_key(filepath: str, public_key_pem: str, client_uuid: str
 
     return save_encrypted_file(filepath, json_data)
 
-#Función para guardar archivo cifrado
-def save_encrypted_file(filepath, json_data):
-    file_name = f"{Path(filepath).stem}_cif.json"
-    output_dir = Path(r"C:/Users/DEV_FARID/Downloads/Cifrado")#Directorio solo para pruebas, CAMBIAR al compilar
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / file_name
 
-    with open(output_file, 'w') as f:
-        json.dump(json_data, f)
-    
-    return str(output_file)

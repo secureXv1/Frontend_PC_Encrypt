@@ -1450,7 +1450,11 @@ class EncryptionPanel(QWidget):
 
     #Función para cifrar un archivo
     def on_encrypt_file(self):      
-        dialog = EncryptWizardDialog(self, client_uuid=get_client_uuid())
+        dialog = EncryptWizardDialog(
+            parent=self,
+            client_uuid=get_client_uuid(),
+            encrypted_view=self.encrypted_view
+        )
         if dialog.exec_() == QtWidgets.QDialog.accepted:
             try:
                 files = [dialog.file_list.item(i).text() for i in range(dialog.file_list.count())]

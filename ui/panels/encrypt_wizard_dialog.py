@@ -20,10 +20,12 @@ from ui.utils.encryption_logic import encrypt_with_password, encrypt_with_public
 from pathlib import Path
 from db_cliente import get_client_uuid
 from ui.utils.encryption_logic import encrypt_with_public_key
+from ui.views.encrypted_view import EncryptedView
 
 class EncryptWizardDialog(QDialog):
-    def __init__(self, parent=None, client_uuid=None):
+    def __init__(self, parent=None, client_uuid=None, encrypted_view=None):
         super().__init__(parent)
+        self.encrypted_view = encrypted_view
         self.client_uuid = client_uuid
         self.setWindowTitle("Asistente de cifrado")
         self.setMinimumWidth(540)
@@ -436,7 +438,7 @@ class EncryptWizardDialog(QDialog):
                 return
             self.perform_encrypt_with_key(self.final_selected_key)
         
-        self.accept()
+        
     
     #Función ver/ocultar contraseña
     def toggle_password_visibility(self, state):
@@ -452,6 +454,15 @@ class EncryptWizardDialog(QDialog):
                 print(f"[✔] Archivo cifrado con contraseña: {result}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo cifrar {filepath}:\n{str(e)}")
+        
+        #Refrescar lista de archivos en el panel de cifrado
+        #Recargar lista de archivos en el panel de cifrado
+        if self.encrypted_view:
+            self.encrypted_view.load_files()
+        
+        QMessageBox.information(self, "Éxito", "Archivo(s) cifrado(s) correctamente!")
+        self.accept()
+
 
     #Función para llamar cifrado con llave
     def perform_encrypt_with_key(self, key_filename):
@@ -460,22 +471,46 @@ class EncryptWizardDialog(QDialog):
             keys_dir.mkdir(parents=True, exist_ok=True)
             key_path = keys_dir / key_filename
 
+            #Validar que exista la llave
             if not key_path.exists():
-                QMessageBox.critical(self, "Error", f"No se encontró la llave: {key_path}")
+                QMessageBox.critical(self, "Error", f"No se encontró la llave:\n{key_path}")
                 return
             
-            with open(key_path, 'r') as f:
+            #Validar extención de la llave .pem
+            if not key_path.suffix.lower() == ".pem":
+                QMessageBox.critical(self, "Error", "El archivo seleccionado no es un llave válida")
+                return
+            
+            #Leer el contenido
+            with open(key_path, 'r', encoding='utf-8') as f:
                 public_key_pem = f.read()
+            
+            #Validar contenido
+            if "-----BEGIN RSA PUBLIC KEY-----" not in public_key_pem:
+                QMessageBox.critical(self, "Error", "El archivo no contiene una llave RSA válida")
+                return
+            
         except Exception as e:
             QMessageBox.critical(self, "Error", "No se pudo leer la llave:\n{str(e)}")
             return
         
+        #Intentar cifrar los archivos
         for filepath in self.files_to_encrypt:
             try:
                 encrypt_with_public_key(filepath, public_key_pem, self.client_uuid)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo cifrar {filepath}:\n{str(e)}")
                 return
+        
+        #Recargar lista de archivos en el panel de cifrado
+        if self.encrypted_view:
+            self.encrypted_view.load_files()
+        
+        QMessageBox.information(self, "Éxito", "Archivo(s) cifrado(s) correctamente!")
+        self.accept()
+
+        # Al final de cada función:
+        
 
     #Función para construir payload con archivos a cifrar
     def build_payload(self):
