@@ -23,7 +23,7 @@ from ui.utils.encryption_logic import encrypt_with_public_key
 from ui.views.encrypted_view import EncryptedView
 
 class EncryptWizardDialog(QDialog):
-    def __init__(self, parent=None, client_uuid=None, encrypted_view=None):
+    def __init__(self, parent=None, client_uuid=None, encrypted_view=None, initial_files=None):
         super().__init__(parent)
         self.encrypted_view = encrypted_view
         self.client_uuid = client_uuid
@@ -45,6 +45,10 @@ class EncryptWizardDialog(QDialog):
         self.setup_step1()
         self.setup_step2()
         self.setup_step3()
+
+        #Agregar archivos predefinidos, agregados (notas por ejemplo)
+        if initial_files:
+            self.add_files(initial_files)
 
         #Contendor Botones (Atrás - Siguiente - Cancelar)
         self.buttons_layout = QHBoxLayout()
@@ -101,7 +105,12 @@ class EncryptWizardDialog(QDialog):
 
         self.stack.addWidget(step)
 
-                       
+    #Función agregar archivos desde notas
+    def add_files(self, files):
+        for file in files:
+            if os.path.isfile(file) and file not in self.files_to_encrypt:
+                self.files_to_encrypt.append(file)
+                self.file_list.addItem(str(file))                  
 
     #Función para agregar carpeta a cifrar
     def add_folder(self):
@@ -509,8 +518,7 @@ class EncryptWizardDialog(QDialog):
         QMessageBox.information(self, "Éxito", "Archivo(s) cifrado(s) correctamente!")
         self.accept()
 
-        # Al final de cada función:
-        
+               
 
     #Función para construir payload con archivos a cifrar
     def build_payload(self):

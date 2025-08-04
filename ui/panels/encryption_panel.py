@@ -220,9 +220,7 @@ class EncryptionPanel(QWidget):
             ("Llaves", "keys.svg"),
             ("Notas", "notas.svg"),
             ("Cifrar", "encrypt.svg"),
-            ("Descifrar", "decrypt.svg"),
-            ("Ocultar", "hidden.svg"),
-            ("Extraer", "extract.svg"),
+            ("Descifrar", "decrypt.svg"),            
         ]
 
         for label, icon_file in options:
@@ -299,10 +297,7 @@ class EncryptionPanel(QWidget):
             self.show_encrypt_ui()
         elif operation == "Descifrar":
             self.show_decrypt_ui()
-        elif operation == "Ocultar":
-            self.show_hide_ui()
-        elif operation == "Extraer":
-            self.show_extract_ui()
+        
 
     
     #Función para dar color a iconos menú 5 opciones

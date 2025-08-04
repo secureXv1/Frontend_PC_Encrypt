@@ -7,6 +7,7 @@ from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor
 from pathlib import Path
 import os, shutil, datetime
+from ui.panels.hide_wizard_dialog import HideWizardDialog
 
 class EncryptedView(QWidget):
     def __init__(self):
@@ -202,8 +203,16 @@ class EncryptedView(QWidget):
     
     #Función para llamar el método para descifrar
     def descifrar_archivo(self, path): print(f"Descifrar: {path}")
+    
     #Función para llamar el método para ocultar
-    def ocultar_archivo(self, path): print(f"Ocultar: {path}")
+    def ocultar_archivo(self, path):
+        if not path.exists():
+            QMessageBox.warning(self, "Error", f"No se encontró el archivo:\n{path}")
+            return
+        #Abrir el asistente para ocultar archivo preseleccionado
+        dialog = HideWizardDialog(self, encrypted_file_path=str(path))
+        dialog.exec_()
+
     #Función para exportar un archivo
     def exportar_archivo(self, path):
         dest, _ = QFileDialog.getSaveFileName(self, "Exportar archivo", path.name)

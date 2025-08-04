@@ -10,6 +10,11 @@ from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QFont, QPixmap, QPainter, QColor
 from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction
 from functools import partial
+from ui.panels.encrypt_wizard_dialog import EncryptWizardDialog
+from db_cliente import get_client_uuid
+from PyQt5 import QtWidgets
+from pathlib import Path
+from ui.views.encrypted_view import EncryptedView
 
 
 class NotesView(QWidget):
@@ -17,6 +22,7 @@ class NotesView(QWidget):
         super().__init__()
         self.notes_dir = os.path.join(os.path.expanduser("~"), notes_dir)
         os.makedirs(self.notes_dir, exist_ok=True)
+        self.encrypted_view = EncryptedView()
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -389,7 +395,19 @@ class NotesView(QWidget):
 
     #Función para cifrar nota
     def encrypt_note(self, filename):
-        QMessageBox.information(self, "Cifrar", f"⚙️ Aquí se cifraría la nota: {filename}")
-        # Aquí podrías abrir el diálogo de cifrado o redirigir a la lógica existente
+        note_path = Path(self.notes_dir) / filename
+        if not note_path.exists():
+            QMessageBox.warning(self, "Error", f"No se encontró la nota: {note_path}")
+            return
+        
+        #Abrir el asistente de cifrado con la nota preseleccionada
+        dialog = EncryptWizardDialog(
+            parent=self,
+            client_uuid=get_client_uuid(),
+            encrypted_view=self.encrypted_view,
+            initial_files=[str(note_path)]
+        )        
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            QMessageBox.information(self, "Éxito", f"La nota '{filename}' fue cifrada exitosamente.\n Búscala en el panel Cifrar")
     
     
