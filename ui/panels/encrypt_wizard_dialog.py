@@ -21,6 +21,7 @@ from pathlib import Path
 from db_cliente import get_client_uuid
 from ui.utils.encryption_logic import encrypt_with_public_key
 from ui.views.encrypted_view import EncryptedView
+from ui.panels.hide_wizard_dialog import HideWizardDialog
 
 class EncryptWizardDialog(QDialog):
     def __init__(self, parent=None, client_uuid=None, encrypted_view=None, initial_files=None):
@@ -457,20 +458,37 @@ class EncryptWizardDialog(QDialog):
 
     #Función para llamar cifrado con contraseña
     def perform_encrypt_with_password(self, password):
+        encrypted_files = []
+
         for filepath in self.files_to_encrypt:
             try:
-                result = encrypt_with_password(filepath, password, client_uuid="desktop-client")
-                print(f"[✔] Archivo cifrado con contraseña: {result}")
+                result = encrypt_with_password(filepath, password, client_uuid=self.client_uuid)                
+                if result:
+                    encrypted_files.append(result)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo cifrar {filepath}:\n{str(e)}")
+                return
         
-        #Refrescar lista de archivos en el panel de cifrado
-        #Recargar lista de archivos en el panel de cifrado
+        #Recargar la lista si se tiene vista disponible
         if self.encrypted_view:
             self.encrypted_view.load_files()
-        
-        QMessageBox.information(self, "Éxito", "Archivo(s) cifrado(s) correctamente!")
+                        
+        #Preguntar si desea ocultar el archivo cifrado
+        if encrypted_files:
+            QMessageBox.information(self, "Éxito", "Archivo(s) cifrado(s) correctamente!")
+            #Preguntar si desea ocultar el archivo cifrado
+            respuesta = QMessageBox.question(
+                self,
+                "Ocultar archivo",
+                "¿Deseas ocultar el archivo cifrado dentro de un archivo contenedor?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if respuesta == QMessageBox.Yes:
+                dialog = HideWizardDialog(self, encrypted_file_path=encrypted_files[-1])
+                dialog.exec_()
+            
         self.accept()
+
 
 
     #Función para llamar cifrado con llave
@@ -487,7 +505,7 @@ class EncryptWizardDialog(QDialog):
             
             #Validar extención de la llave .pem
             if not key_path.suffix.lower() == ".pem":
-                QMessageBox.critical(self, "Error", "El archivo seleccionado no es un llave válida")
+                QMessageBox.critical(self, "Error", "El archivo seleccionado no es un llave válida (.pem)")
                 return
             
             #Leer el contenido
@@ -503,10 +521,14 @@ class EncryptWizardDialog(QDialog):
             QMessageBox.critical(self, "Error", "No se pudo leer la llave:\n{str(e)}")
             return
         
+        archivos_cifrados = []
+        
         #Intentar cifrar los archivos
         for filepath in self.files_to_encrypt:
             try:
-                encrypt_with_public_key(filepath, public_key_pem, self.client_uuid)
+                result = encrypt_with_public_key(filepath, public_key_pem, self.client_uuid)
+                if result:
+                    archivos_cifrados.append(result)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo cifrar {filepath}:\n{str(e)}")
                 return
@@ -514,11 +536,25 @@ class EncryptWizardDialog(QDialog):
         #Recargar lista de archivos en el panel de cifrado
         if self.encrypted_view:
             self.encrypted_view.load_files()
-        
-        QMessageBox.information(self, "Éxito", "Archivo(s) cifrado(s) correctamente!")
-        self.accept()
-
                
+        #Confirmación de éxito
+        if archivos_cifrados:
+            QMessageBox.information(self, "Éxito", "Archivo(s) cifrado(s) correctamente!")
+            
+            #Preguntar si desea ocultar los archivos cifrados
+            respuesta = QMessageBox.question(
+                self,
+                "¿Ocultar Archivo?",
+                "Deseas ocultar el archivo cifrado en un contenedor?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if respuesta == QMessageBox.Yes:
+                dialog = HideWizardDialog(self, encrypted_file_path=archivos_cifrados[-1])
+                dialog.exec_()
+        else:
+            QMessageBox.warning(self, "Advertencia", "No se generó ningún archivo cifrado")
+        self.accept()
+        
 
     #Función para construir payload con archivos a cifrar
     def build_payload(self):
